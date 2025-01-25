@@ -26,6 +26,8 @@
 #include <filesystem>
 #ifdef __WIN32
 	#include <windows.h>
+	SetConsoleCP(1251);
+	SetConsoleOutputCP(1251);
 #elif __linux__
 	
 #endif
@@ -35,10 +37,10 @@ extern "C" {
 }
 
 int main(int argc, char *argv[]) {
-	SetConsoleCP(1251);
-	SetConsoleOutputCP(1251);
-	
-	
+	if (!std::filesystem::exists("nc-bin")) {
+		std::filesystem::create_directory("nc-bin");
+	}
+	if (!std::filesystem::exists("nc-bin/cfg.toml"))
 	
 	/* auto data = toml::parse("test.toml");
 	int title = toml::find<int>(data, "main", "owners");
