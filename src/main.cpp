@@ -23,13 +23,31 @@
 */
 
 #include <iostream>
+#include <filesystem>
+#ifdef __WIN32
+	#include <windows.h>
+#elif __linux__
+	
+#endif
 #include "toml.hpp"
 extern "C" {
-	
+
 }
 
 int main(int argc, char *argv[]) {
-	auto data = toml::parse("test.toml");
+	SetConsoleCP(1251);
+	SetConsoleOutputCP(1251);
+	
+	
+	
+	/* auto data = toml::parse("test.toml");
 	int title = toml::find<int>(data, "main", "owners");
-	std::cout << title << std::endl;
+	std::cout << "Enter: ";
+	std::string pizda;
+	getline(std::cin, pizda);
+	
+	data["testing"]["pizdaV1"] = pizda;
+	std::ofstream file("test.toml");
+	file << data;
+	file.close(); */
 }
