@@ -23,6 +23,10 @@
 */
 
 #include <iostream>
+#include "toml.hpp"
+extern "C" {
+	
+}
 
 int main(int argc, char *argv[]) {
 	
