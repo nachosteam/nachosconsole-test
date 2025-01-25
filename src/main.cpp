@@ -29,5 +29,7 @@ extern "C" {
 }
 
 int main(int argc, char *argv[]) {
-	
+	auto data = toml::parse("test.toml");
+	int title = toml::find<int>(data, "main", "owners");
+	std::cout << title << std::endl;
 }
