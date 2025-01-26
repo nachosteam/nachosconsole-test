@@ -3,3 +3,4 @@
 *.dll
 compile.txt
 *.toml
+src/nc-bin

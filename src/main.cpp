@@ -24,7 +24,10 @@
 
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <filesystem>
+#include <locale>
+#include <codecvt>
 #ifdef __WIN32
 	#include <windows.h>
 #elif __linux__
@@ -36,17 +39,13 @@ extern "C" {
 }
 
 int main(int argc, char *argv[]) {
-	SetConsoleCP(1251);
-	SetConsoleOutputCP(1251);
-	
-	if (!std::filesystem::exists("nc-bin")) {
-		std::filesystem::create_directory("nc-bin");
-	}
+	SetConsoleCP(CP_UTF8);
+    SetConsoleOutputCP(CP_UTF8);
+
 	if (!std::filesystem::exists("nc-bin/cfg.toml")) {
 		std::ofstream cfg;
 		cfg.open("nc-bin/cfg.toml");
 		if (cfg.is_open()) {
-			cfg << "pizdaaaa";
 			cfg.close();
 		}
 		else {
@@ -54,6 +53,10 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 	}
+	std::wcout << L"Enter: ";
+	std::wstring input;
+	getline(std::wcin, input);
+	std::wcout << input << std::endl;
 	
 	/* auto data = toml::parse("test.toml");
 	int title = toml::find<int>(data, "main", "owners");
