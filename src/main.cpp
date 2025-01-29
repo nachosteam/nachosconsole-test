@@ -1,4 +1,4 @@
-﻿/*
+/*
 	MIT License
 
 	Copyright (c) 2025 Nachos Team
@@ -39,8 +39,8 @@ extern "C" {
 }
 
 int main(int argc, char *argv[]) {
-	SetConsoleCP(CP_UTF8);
-    SetConsoleOutputCP(CP_UTF8);
+	//SetConsoleCP(CP_UTF8);
+    //SetConsoleOutputCP(CP_UTF8);
 
 	if (!std::filesystem::exists("nc-bin/cfg.toml")) {
 		std::ofstream cfg;
@@ -53,10 +53,23 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 	}
-	std::wcout << L"Enter: ";
-	std::wstring input;
-	getline(std::wcin, input);
-	std::wcout << input << std::endl;
+	while (true) {
+		std::wcout << "Enter: ";
+		std::wstring input;
+		getline(std::wcin, input);
+		std::string input_str(input.begin(), input.end());
+		if (input == L"pizda") {
+			std::wcout << "pizdec" << std::endl;
+		}
+		else {
+			if (std::filesystem::exists(L"nc-bin/"+input)) {
+				std::cout << "Test: Exists" << std::endl;
+			}
+			else {
+				std::wcout << "Unknown command: " << input << std::endl;
+			}
+		}
+	}
 	
 	/* auto data = toml::parse("test.toml");
 	int title = toml::find<int>(data, "main", "owners");
