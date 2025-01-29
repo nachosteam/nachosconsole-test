@@ -26,8 +26,6 @@
 #include <fstream>
 #include <string>
 #include <filesystem>
-#include <locale>
-#include <codecvt>
 #ifdef __WIN32
 	#include <windows.h>
 #elif __linux__
@@ -39,20 +37,6 @@ extern "C" {
 }
 
 int main(int argc, char *argv[]) {
-	//SetConsoleCP(CP_UTF8);
-    //SetConsoleOutputCP(CP_UTF8);
-
-	if (!std::filesystem::exists("nc-bin/cfg.toml")) {
-		std::ofstream cfg;
-		cfg.open("nc-bin/cfg.toml");
-		if (cfg.is_open()) {
-			cfg.close();
-		}
-		else {
-			std::cout << "Can't open the file!";
-			return 1;
-		}
-	}
 	while (true) {
 		std::wcout << "Enter: ";
 		std::wstring input;
@@ -62,11 +46,14 @@ int main(int argc, char *argv[]) {
 			std::wcout << "pizdec" << std::endl;
 		}
 		else {
-			if (std::filesystem::exists(L"nc-bin/"+input)) {
-				std::cout << "Test: Exists" << std::endl;
-			}
-			else {
-				std::wcout << "Unknown command: " << input << std::endl;
+			if (!input.empty()) {
+				// сделать проверку на пробелы в вводе (ес пробелы, то пуста)
+				if (std::filesystem::exists(L"nc-bin/"+input)) {
+					std::cout << "Test: Exists" << std::endl;
+				}
+				else {
+					std::wcout << "Unknown command: " << input << std::endl;
+				}
 			}
 		}
 	}
