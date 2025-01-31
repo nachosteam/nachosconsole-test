@@ -32,7 +32,7 @@
 	
 #endif
 #include "toml.hpp"
-#include "account.hpp"
+#include "getFromCfg.hpp"
 extern "C" {
 
 }
@@ -40,7 +40,8 @@ extern "C" {
 int main(int argc, char *argv[]) {
 	checkExistsCFG();
 	while (true) {
-		std::wcout << L"Enter(" << getUsername() << L"): ";
+		//std::wcout << L"Enter: ";
+		std::wcout << getUsername() << L"@" << getPc() << L"$ ";
 		std::wstring input;
 		getline(std::wcin, input);
 		std::string input_str(input.begin(), input.end());
