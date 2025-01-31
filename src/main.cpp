@@ -50,6 +50,7 @@ int main(int argc, char *argv[]) {
 				// сделать проверку на пробелы в вводе (ес пробелы, то пуста)
 				if (std::filesystem::exists(L"nc-bin/"+input)) {
 					std::cout << "Test: Exists" << std::endl;
+					//добавить запуск прог
 				}
 				else {
 					std::wcout << "Unknown command: " << input << std::endl;
