@@ -40,7 +40,6 @@ extern "C" {
 int main(int argc, char *argv[]) {
 	checkExistsCFG();
 	while (true) {
-		//std::wcout << L"Enter: ";
 		std::wcout << getUsername() << L"@" << getPc() << L"$ ";
 		std::wstring input;
 		getline(std::wcin, input);
