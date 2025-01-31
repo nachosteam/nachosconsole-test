@@ -32,13 +32,15 @@
 	
 #endif
 #include "toml.hpp"
+#include "account.hpp"
 extern "C" {
 
 }
 
 int main(int argc, char *argv[]) {
+	checkExistsCFG();
 	while (true) {
-		std::wcout << "Enter: ";
+		std::wcout << L"Enter(" << getUsername() << L"): ";
 		std::wstring input;
 		getline(std::wcin, input);
 		std::string input_str(input.begin(), input.end());
