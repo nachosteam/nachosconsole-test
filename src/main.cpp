@@ -38,7 +38,6 @@ extern "C" {
 }
 
 int main(int argc, char *argv[]) {
-	checkExistsCFG();
 	while (true) {
 		std::wcout << getUsername() << L"@" << getPc() << L"$ ";
 		std::wstring input;
