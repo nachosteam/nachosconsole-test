@@ -25,6 +25,7 @@
 #pragma once
 #include <iostream>
 #include "writeInCfg.hpp"
+#include "getFromCfg.hpp"
 #include "toml.hpp"
 
 static void checkExistsCFG() {
@@ -42,4 +43,8 @@ static void checkExistsCFG() {
 			exit(42); // 42 БРАТУХА КЕМЕРОВСКАЯ ОБЛАСТЬ 42 42 42 42 42 42 42 42
 		}
 	}
+}
+static void login() {
+	// потом сделаю логин, а пока для мейна вставлю проверку кфг
+	checkExistsCFG();
 }

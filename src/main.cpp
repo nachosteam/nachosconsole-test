@@ -33,11 +33,13 @@
 #endif
 #include "toml.hpp"
 #include "getFromCfg.hpp"
+#include "account.hpp"
 extern "C" {
 
 }
 
 int main(int argc, char *argv[]) {
+	login();
 	while (true) {
 		std::wcout << getUsername() << L"@" << getPc() << L"$ ";
 		std::wstring input;
