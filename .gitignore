@@ -4,3 +4,4 @@
 compile.txt
 *.toml
 src/nc-bin
+nc
