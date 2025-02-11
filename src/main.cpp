@@ -25,6 +25,7 @@
 #endif
 #include "toml.hpp"
 #include "getFromCfg.hpp"
+#include "writeInCfg.hpp"
 #include "account.hpp"
 extern "C" {
 
@@ -39,6 +40,11 @@ int main(int argc, char *argv[]) {
 		std::string input_str(input.begin(), input.end());
 		if (input == L"pizda") {
 			std::wcout << "pizdec" << std::endl;
+		}
+		else if (input == L"adduser") {
+			std::ofstream cfg("nc-bin/cfg.toml");
+			addUser(cfg, "tolik", "123");
+			cfg.close();
 		}
 		else {
 			if (!input.empty()) {

@@ -17,10 +17,17 @@
 #pragma once
 #include <iostream>
 #include "toml.hpp"
+#include "SHA512.h"
 
 static void defaultCfg(std::ofstream &cfg) {
 	cfg << "pc=\"pc\"" << std::endl <<
-		   "username=\"user\"" << std::endl <<
-		   "pass_hash=\"3c9909afec25354d551dae21590bb26e38d53f2173b8d3dc3eee4c047e7ab1c1eb8b85103e3be7ba613b31bb5c9c36214dc9f14a42fd7a2fdb84856bca5c44c2\"" << std::endl <<
-		   "repos=[\"https://raw.githubusercontent.com/nachosteam/ncrepo\"]";
+	"repos=[\"https://raw.githubusercontent.com/nachosteam/ncrepo\"]" << std::endl << std::endl <<
+	"[root]" << std::endl <<
+	"pass_hash=\"\"" << std::endl;
+}
+
+static void addUser(std::ofstream &cfg, std::string username, std::string password) {
+	SHA512 sha512;
+	cfg << "[" << username << "]" << std::endl <<
+	"pass_hash=\"" << sha512.hash(password) << "\"" << std::endl;
 }
