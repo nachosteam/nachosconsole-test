@@ -16,16 +16,8 @@
 
 #pragma once
 #include <iostream>
-#include "toml.hpp"
-#include "sessionData.hpp"
-MainInfo mainInfo;
 
-static std::wstring getPc() {
-	auto data = toml::parse("nc-bin/cfg.toml");
-	std::string pc = toml::find<std::string>(data, "pc");
-        return std::wstring(pc.begin(), pc.end());
-}
-static std::wstring getUsername() {
-	std::string cUsr = mainInfo.currentUsr;
-	return std::wstring(cUsr.begin(), cUsr.end());
-}
+class MainInfo {
+	public:
+		std::string currentUsr;
+};

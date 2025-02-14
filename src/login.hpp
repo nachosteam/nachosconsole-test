@@ -13,11 +13,13 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-
+#pragma once
 #include <iostream>
 #include <fstream>
 #include "toml.hpp"
 #include "SHA512.h"
+#include "sessionData.hpp"
+SHA512 sha512;
 
 static void login () {
 	std::string usr;
@@ -28,9 +30,10 @@ static void login () {
 		std::string pass;
 		std::cout << "\tPassword: ";
 		getline(std::cin, pass);
-		SHA512 sha512;
-		if (toml::find<std::string>(data, usr, "pass_hash") == sha512.hash(pass) || toml::find<std::string>(data, usr, "pass_hash").empty() && pass.empty())
+		if (toml::find<std::string>(data, usr, "pass_hash") == sha512.hash(pass) || toml::find<std::string>(data, usr, "pass_hash").empty() && pass.empty()) {
+			mainInfo.currentUsr = usr;
 			std::cout << "Welcome, " << usr << "!" << std::endl;
+		}
 		else {
 			std::cout << "Incorrect password" << std::endl;
 			exit(1);
@@ -51,13 +54,13 @@ static void reg () {
 		std::string pass;
 		std::cout << "\tPassword: ";
 		getline(std::cin, pass);
-		SHA512 sha512;
 		pass = sha512.hash(pass);
 		data[usr]["pass_hash"] = pass;
 		std::ofstream cfg;
 		cfg.open("nc-bin/cfg.toml");
 		cfg << data;
 		cfg.close();
+		mainInfo.currentUsr = usr;
 	}
 	else {
 		std::cout << "This user already exests!" <<std::endl;
