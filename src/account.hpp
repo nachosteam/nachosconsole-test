@@ -18,6 +18,7 @@
 #include <iostream>
 #include "writeInCfg.hpp"
 #include "getFromCfg.hpp"
+#include "login.hpp"
 #include "toml.hpp"
 
 static void checkExistsCFG() {
@@ -29,6 +30,7 @@ static void checkExistsCFG() {
 		if (cfg.is_open()) {
 			defaultCfg(cfg); // для предотвращения ошибок с случае выхода из программы во время первоначальной настройки
 			cfg.close();
+			reg();
 		}
 		else {
 			std::cout << "Can't open the file!" << std::endl;
@@ -36,6 +38,6 @@ static void checkExistsCFG() {
 		}
 	}
 }
-static void login() {
+static void signIn() {
 	checkExistsCFG();
 }
