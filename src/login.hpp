@@ -15,6 +15,7 @@
 */
 
 #include <iostream>
+#include <fstream>
 #include "toml.hpp"
 #include "SHA512.h"
 
@@ -28,5 +29,22 @@ static void login () {
 	}
 }
 static void reg () {
-	
+	std::cout << "Register:" << std::endl;
+	std::string usr;
+	std::cout << "\tLogin: ";
+	getline(std::cin, usr);
+	auto data = toml::parse("nc-bin/cfg.toml");
+	if (!data.contains(usr)) {
+		std::string pass;
+		std::cout << std::endl <<
+		"\tPassword: ";
+		getline(std::cin, pass);
+		SHA512 sha512;
+		pass = sha512.hash(pass);
+		data[usr]["pass_hash"] = pass;
+		std::ofstream cfg;
+		cfg.open("nc-bin/cfg.toml");
+		cfg << data;
+		cfg.close();
+	}
 }
