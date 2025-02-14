@@ -29,11 +29,16 @@ static void login () {
 		std::cout << "\tPassword: ";
 		getline(std::cin, pass);
 		SHA512 sha512;
-		if (toml::find<std::string>(data, usr, "pass_hash") == sha512.hash(pass))
+		if (toml::find<std::string>(data, usr, "pass_hash") == sha512.hash(pass) || toml::find<std::string>(data, usr, "pass_hash").empty() && pass.empty())
 			std::cout << "Welcome, " << usr << "!" << std::endl;
-		else
+		else {
 			std::cout << "Incorrect password" << std::endl;
 			exit(1);
+		}
+	}
+	else {
+		std::cout << "This user does not exists" << std::endl;
+		exit(1);
 	}
 }
 static void reg () {
