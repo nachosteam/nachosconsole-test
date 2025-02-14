@@ -37,6 +37,8 @@ static void checkExistsCFG() {
 			exit(42); // 42 БРАТУХА КЕМЕРОВСКАЯ ОБЛАСТЬ 42 42 42 42 42 42 42 42
 		}
 	}
+	else
+		login();
 }
 static void signIn() {
 	checkExistsCFG();

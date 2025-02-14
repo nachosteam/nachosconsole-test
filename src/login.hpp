@@ -25,7 +25,15 @@ static void login () {
 	getline(std::cin, usr);
 	auto data = toml::parse("nc-bin/cfg.toml");
 	if (data.contains(usr)) {
-		std::cout << "da" << std::endl;
+		std::string pass;
+		std::cout << "\tPassword: ";
+		getline(std::cin, pass);
+		SHA512 sha512;
+		if (toml::find<std::string>(data, usr, "pass_hash") == sha512.hash(pass))
+			std::cout << "Welcome, " << usr << "!" << std::endl;
+		else
+			std::cout << "Incorrect password" << std::endl;
+			exit(1);
 	}
 }
 static void reg () {
@@ -36,8 +44,7 @@ static void reg () {
 	auto data = toml::parse("nc-bin/cfg.toml");
 	if (!data.contains(usr)) {
 		std::string pass;
-		std::cout << std::endl <<
-		"\tPassword: ";
+		std::cout << "\tPassword: ";
 		getline(std::cin, pass);
 		SHA512 sha512;
 		pass = sha512.hash(pass);
@@ -46,5 +53,9 @@ static void reg () {
 		cfg.open("nc-bin/cfg.toml");
 		cfg << data;
 		cfg.close();
+	}
+	else {
+		std::cout << "This user already exests!" <<std::endl;
+		exit(1);
 	}
 }

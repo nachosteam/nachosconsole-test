@@ -19,9 +19,14 @@
 #include "toml.hpp"
 
 static std::wstring getData(std::string dataName) {
-	auto data = toml::parse("nc-bin/cfg.toml");
-	std::string str = toml::find<std::string>(data, dataName);
-	return std::wstring(str.begin(), str.end());
+	/* auto data = toml::parse("nc-bin/cfg.toml");
+	std::string str;
+	if (dataName == "pc")
+		std::string str = toml::find<std::string>(data, dataName);
+	else
+		std::string str = toml::find<std::string>(data, dataName);
+	return std::wstring(str.begin(), str.end()); */
+	return L"pizdaa";
 }
 
 static std::wstring getPc() {
