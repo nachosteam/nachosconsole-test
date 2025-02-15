@@ -2,7 +2,7 @@
 #define TOML11_VERSION_HPP
 
 #define TOML11_VERSION_MAJOR 4
-#define TOML11_VERSION_MINOR 3
+#define TOML11_VERSION_MINOR 4
 #define TOML11_VERSION_PATCH 0
 
 #ifndef __cplusplus
@@ -3152,8 +3152,11 @@ TOML11_INLINE std::ostream& white  (std::ostream& os)
 #ifndef TOML11_SPEC_HPP
 #define TOML11_SPEC_HPP
 
+#include <array>
+#include <functional>
 #include <ostream>
 #include <sstream>
+#include <utility>
 
 #include <cstdint>
 
@@ -3267,6 +3270,51 @@ struct spec
     bool ext_num_suffix; // allow number suffix (in C++ style)
     bool ext_null_value; // allow `null` as a value
 };
+
+namespace detail
+{
+inline std::pair<const semantic_version&, std::array<bool, 10>>
+to_tuple(const spec& s) noexcept
+{
+    return std::make_pair(std::cref(s.version), std::array<bool, 10>{{
+            s.v1_1_0_allow_control_characters_in_comments,
+            s.v1_1_0_allow_newlines_in_inline_tables,
+            s.v1_1_0_allow_trailing_comma_in_inline_tables,
+            s.v1_1_0_allow_non_english_in_bare_keys,
+            s.v1_1_0_add_escape_sequence_e,
+            s.v1_1_0_add_escape_sequence_x,
+            s.v1_1_0_make_seconds_optional,
+            s.ext_hex_float,
+            s.ext_num_suffix,
+            s.ext_null_value
+        }});
+}
+} // detail
+
+inline bool operator==(const spec& lhs, const spec& rhs) noexcept
+{
+    return detail::to_tuple(lhs) == detail::to_tuple(rhs);
+}
+inline bool operator!=(const spec& lhs, const spec& rhs) noexcept
+{
+    return detail::to_tuple(lhs) != detail::to_tuple(rhs);
+}
+inline bool operator< (const spec& lhs, const spec& rhs) noexcept
+{
+    return detail::to_tuple(lhs) <  detail::to_tuple(rhs);
+}
+inline bool operator<=(const spec& lhs, const spec& rhs) noexcept
+{
+    return detail::to_tuple(lhs) <= detail::to_tuple(rhs);
+}
+inline bool operator> (const spec& lhs, const spec& rhs) noexcept
+{
+    return detail::to_tuple(lhs) >  detail::to_tuple(rhs);
+}
+inline bool operator>=(const spec& lhs, const spec& rhs) noexcept
+{
+    return detail::to_tuple(lhs) >= detail::to_tuple(rhs);
+}
 
 } // namespace toml
 #endif // TOML11_SPEC_HPP
@@ -3459,6 +3507,32 @@ class ordered_map : detail::ordered_map_ebo_container<Cmp>
             throw std::out_of_range("ordered_map: no such element");
         }
         return iter->second;
+    }
+
+    iterator erase(iterator pos)
+    {
+        return container_.erase(pos);
+    }
+    
+    iterator erase(const_iterator pos)
+    {
+        return container_.erase(pos);
+    }
+    
+    iterator erase(const_iterator first, const_iterator last)
+    {
+        return container_.erase(first, last);
+    }
+    
+    size_type erase(const key_type& key)
+    {
+        auto it = this->find(key);
+        if (it != this->end())
+        {
+            container_.erase(it);
+            return 1;
+        }
+        return 0;
     }
 
     mapped_type& operator[](const key_type& k)
@@ -3869,7 +3943,7 @@ struct bad_result_access final : public ::toml::exception
 template<typename T>
 struct success
 {
-    static_assert( ! std::is_same<T, void>::value, "");
+    static_assert( ! std::is_void<T>::value, "");
 
     using value_type = T;
 
@@ -3903,7 +3977,7 @@ struct success
 template<typename T>
 struct success<std::reference_wrapper<T>>
 {
-    static_assert( ! std::is_same<T, void>::value, "");
+    static_assert( ! std::is_void<T>::value, "");
 
     using value_type = T;
 
@@ -5759,6 +5833,10 @@ TOML11_INLINE std::ostream& operator<<(std::ostream& os, const error_info& e)
 #include <string_view>
 #endif
 
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+#include <atomic>
+#endif
+
 #include <cassert>
 
 namespace toml
@@ -5797,6 +5875,11 @@ void change_region_of_value(basic_value<TC>&, const basic_value<TC>&);
 
 template<typename TC, value_t V>
 struct getter;
+
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+template<typename TC>
+void unset_access_flag(basic_value<TC>&);
+#endif
 } // detail
 
 template<typename TypeConfig>
@@ -5828,6 +5911,9 @@ class basic_value
 
     basic_value() noexcept
         : type_(value_t::empty), empty_('\0'), region_{}, comments_{}
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     ~basic_value() noexcept {this->cleanup();}
 
@@ -5835,6 +5921,9 @@ class basic_value
 
     basic_value(const basic_value& v)
         : type_(v.type_), region_(v.region_), comments_(v.comments_)
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{v.accessed()}
+#endif
     {
         switch(this->type_)
         {
@@ -5854,6 +5943,9 @@ class basic_value
     basic_value(basic_value&& v)
         : type_(v.type()), region_(std::move(v.region_)),
           comments_(std::move(v.comments_))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{v.accessed()}
+#endif
     {
         switch(this->type_)
         {
@@ -5879,6 +5971,9 @@ class basic_value
         this->type_     = v.type_;
         this->region_   = v.region_;
         this->comments_ = v.comments_;
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = v.accessed();
+#endif
         switch(this->type_)
         {
             case value_t::boolean        : assigner(boolean_        , v.boolean_        ); break;
@@ -5903,6 +5998,9 @@ class basic_value
         this->type_     = v.type_;
         this->region_   = std::move(v.region_);
         this->comments_ = std::move(v.comments_);
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = v.accessed();
+#endif
         switch(this->type_)
         {
             case value_t::boolean        : assigner(boolean_        , std::move(v.boolean_        )); break;
@@ -5926,6 +6024,9 @@ class basic_value
     basic_value(basic_value v, std::vector<std::string> com)
         : type_(v.type()), region_(std::move(v.region_)),
           comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{v.accessed()}
+#endif
     {
         switch(this->type_)
         {
@@ -5951,6 +6052,9 @@ class basic_value
         : type_(other.type_),
           region_(std::move(other.region_)),
           comments_(std::move(other.comments_))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{other.accessed()}
+#endif
     {
         switch(other.type_)
         {
@@ -5996,6 +6100,9 @@ class basic_value
         : type_(other.type_),
           region_(std::move(other.region_)),
           comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{other.accessed()}
+#endif
     {
         switch(other.type_)
         {
@@ -6042,6 +6149,10 @@ class basic_value
         this->region_ = other.region_;
         this->comments_    = comment_type(other.comments_);
         this->type_        = other.type_;
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = other.accessed();
+#endif
+
         switch(other.type_)
         {
             // use auto-convert in constructor
@@ -6101,6 +6212,9 @@ class basic_value
                 std::vector<std::string> com, region_type reg)
         : type_(value_t::boolean), boolean_(boolean_storage(x, fmt)),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(boolean_type x)
     {
@@ -6112,6 +6226,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::boolean;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->boolean_, boolean_storage(x, fmt));
         return *this;
     }
@@ -6135,6 +6252,9 @@ class basic_value
     basic_value(integer_type x, integer_format_info fmt, std::vector<std::string> com, region_type reg)
         : type_(value_t::integer), integer_(integer_storage(std::move(x), std::move(fmt))),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(integer_type x)
     {
@@ -6146,6 +6266,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::integer;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->integer_, integer_storage(std::move(x), std::move(fmt)));
         return *this;
     }
@@ -6181,6 +6304,9 @@ class basic_value
     basic_value(T x, integer_format_info fmt, std::vector<std::string> com, region_type reg)
         : type_(value_t::integer), integer_(integer_storage(std::move(x), std::move(fmt))),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     template<typename T, enable_if_integer_like_t<T> = nullptr>
     basic_value& operator=(T x)
@@ -6193,6 +6319,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::integer;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->integer_, integer_storage(x, std::move(fmt)));
         return *this;
     }
@@ -6216,6 +6345,9 @@ class basic_value
     basic_value(floating_type x, floating_format_info fmt, std::vector<std::string> com, region_type reg)
         : type_(value_t::floating), floating_(floating_storage(std::move(x), std::move(fmt))),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(floating_type x)
     {
@@ -6227,6 +6359,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::floating;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->floating_, floating_storage(std::move(x), std::move(fmt)));
         return *this;
     }
@@ -6265,6 +6400,9 @@ class basic_value
     basic_value(T x, floating_format_info fmt, std::vector<std::string> com, region_type reg)
         : type_(value_t::floating), floating_(floating_storage(x, std::move(fmt))),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
 
     template<typename T, enable_if_floating_like_t<T> = nullptr>
@@ -6278,6 +6416,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::floating;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->floating_, floating_storage(x, std::move(fmt)));
         return *this;
     }
@@ -6302,6 +6443,9 @@ class basic_value
                 std::vector<std::string> com, region_type reg)
         : type_(value_t::string), string_(string_storage(std::move(x), std::move(fmt))),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(string_type x)
     {
@@ -6313,6 +6457,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::string;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->string_, string_storage(x, std::move(fmt)));
         return *this;
     }
@@ -6335,6 +6482,9 @@ class basic_value
                 std::vector<std::string> com, region_type reg)
         : type_(value_t::string), string_(string_storage(string_type(x), std::move(fmt))),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(const typename string_type::value_type* x)
     {
@@ -6346,6 +6496,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::string;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->string_, string_storage(string_type(x), std::move(fmt)));
         return *this;
     }
@@ -6370,6 +6523,9 @@ class basic_value
                 std::vector<std::string> com, region_type reg)
         : type_(value_t::string), string_(string_storage(string_type(x), std::move(fmt))),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(string_view_type x)
     {
@@ -6381,6 +6537,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::string;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->string_, string_storage(string_type(x), std::move(fmt)));
         return *this;
     }
@@ -6424,6 +6583,9 @@ class basic_value
         : type_(value_t::string),
           string_(string_storage(detail::string_conv<string_type>(x), std::move(fmt))),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     template<typename T, cxx::enable_if_t<cxx::conjunction<
             cxx::negation<std::is_same<cxx::remove_cvref_t<T>, string_type>>,
@@ -6439,6 +6601,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::string;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->string_, string_storage(detail::string_conv<string_type>(x), std::move(fmt)));
         return *this;
     }
@@ -6463,6 +6628,9 @@ class basic_value
                 std::vector<std::string> com, region_type reg)
         : type_(value_t::local_date), local_date_(local_date_storage(x, fmt)),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(local_date_type x)
     {
@@ -6474,6 +6642,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::local_date;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->local_date_, local_date_storage(x, fmt));
         return *this;
     }
@@ -6498,6 +6669,9 @@ class basic_value
                 std::vector<std::string> com, region_type reg)
         : type_(value_t::local_time), local_time_(local_time_storage(x, fmt)),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(local_time_type x)
     {
@@ -6509,6 +6683,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::local_time;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->local_time_, local_time_storage(x, fmt));
         return *this;
     }
@@ -6546,6 +6723,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::local_time;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->local_time_, local_time_storage(local_time_type(x), std::move(fmt)));
         return *this;
     }
@@ -6570,6 +6750,9 @@ class basic_value
                 std::vector<std::string> com, region_type reg)
         : type_(value_t::local_datetime), local_datetime_(local_datetime_storage(x, fmt)),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(local_datetime_type x)
     {
@@ -6581,6 +6764,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::local_datetime;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->local_datetime_, local_datetime_storage(x, fmt));
         return *this;
     }
@@ -6605,6 +6791,9 @@ class basic_value
                 std::vector<std::string> com, region_type reg)
         : type_(value_t::offset_datetime), offset_datetime_(offset_datetime_storage(x, fmt)),
           region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(offset_datetime_type x)
     {
@@ -6616,6 +6805,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::offset_datetime;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->offset_datetime_, offset_datetime_storage(x, fmt));
         return *this;
     }
@@ -6648,6 +6840,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::offset_datetime;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->offset_datetime_, offset_datetime_storage(offset_datetime_type(x), fmt));
         return *this;
     }
@@ -6673,6 +6868,9 @@ class basic_value
         : type_(value_t::array), array_(array_storage(
               detail::storage<array_type>(std::move(x)), std::move(fmt)
           )), region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(array_type x)
     {
@@ -6684,6 +6882,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::array;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->array_, array_storage(
                     detail::storage<array_type>(std::move(x)), std::move(fmt)));
         return *this;
@@ -6730,6 +6931,9 @@ class basic_value
                       std::make_move_iterator(x.end()))
               ), std::move(fmt)
           )), region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     template<typename T, enable_if_array_like_t<T> = nullptr>
     basic_value& operator=(T x)
@@ -6742,7 +6946,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::array;
         this->region_ = region_type{};
-
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         array_type a(std::make_move_iterator(x.begin()),
                      std::make_move_iterator(x.end()));
         assigner(this->array_, array_storage(
@@ -6771,6 +6977,9 @@ class basic_value
         : type_(value_t::table), table_(table_storage(
                 detail::storage<table_type>(std::move(x)), std::move(fmt)
           )), region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     basic_value& operator=(table_type x)
     {
@@ -6782,6 +6991,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::table;
         this->region_ = region_type{};
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         assigner(this->table_, table_storage(
             detail::storage<table_type>(std::move(x)), std::move(fmt)));
         return *this;
@@ -6826,6 +7038,9 @@ class basic_value
                       std::make_move_iterator(x.end())
               )), std::move(fmt)
           )), region_(std::move(reg)), comments_(std::move(com))
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
     template<typename T, enable_if_table_like_t<T> = nullptr>
     basic_value& operator=(T x)
@@ -6838,7 +7053,9 @@ class basic_value
         this->cleanup();
         this->type_   = value_t::table;
         this->region_ = region_type{};
-
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         table_type t(std::make_move_iterator(x.begin()),
                      std::make_move_iterator(x.end()));
         assigner(this->table_, table_storage(
@@ -6868,6 +7085,9 @@ class basic_value
     basic_value& operator=(const T& ud)
     {
         *this = into<cxx::remove_cvref_t<T>>::template into_toml<config_type>(ud);
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         return *this;
     }
 
@@ -6891,6 +7111,9 @@ class basic_value
     basic_value& operator=(const T& ud)
     {
         *this = ud.into_toml();
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         return *this;
     }
 
@@ -6914,6 +7137,9 @@ class basic_value
     basic_value& operator=(const T& ud)
     {
         *this = ud.template into_toml<TypeConfig>();
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         return *this;
     }
     // }}}
@@ -6923,6 +7149,9 @@ class basic_value
     // mainly for `null` extension
     basic_value(detail::none_t, region_type reg) noexcept
         : type_(value_t::empty), empty_('\0'), region_(std::move(reg)), comments_{}
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        , accessed_{false}
+#endif
     {}
 
     // }}}
@@ -6934,9 +7163,13 @@ class basic_value
         std::nullptr_t> = nullptr>
     bool is() const noexcept
     {
-        return detail::type_to_enum<T, value_type>::value == this->type_;
+        return this->is(detail::type_to_enum<T, value_type>::value);
     }
-    bool is(value_t t) const noexcept {return t == this->type_;}
+    bool is(value_t t) const noexcept
+    {
+        this->set_accessed();
+        return t == this->type_;
+    }
 
     bool is_empty()           const noexcept {return this->is(value_t::empty          );}
     bool is_boolean()         const noexcept {return this->is(value_t::boolean        );}
@@ -6952,6 +7185,7 @@ class basic_value
 
     bool is_array_of_tables() const noexcept
     {
+        this->set_accessed();
         if( ! this->is_array()) {return false;}
         const auto& a = this->as_array(std::nothrow); // already checked.
 
@@ -6971,7 +7205,11 @@ class basic_value
         return true;
     }
 
-    value_t type() const noexcept {return type_;}
+    value_t type() const noexcept
+    {
+        this->set_accessed();
+        return type_;
+    }
 
     // }}}
 
@@ -6981,36 +7219,38 @@ class basic_value
     detail::enum_to_type_t<T, basic_value<config_type>> const&
     as(const std::nothrow_t&) const noexcept
     {
+        this->set_accessed();
         return detail::getter<config_type, T>::get_nothrow(*this);
     }
     template<value_t T>
     detail::enum_to_type_t<T, basic_value<config_type>>&
     as(const std::nothrow_t&) noexcept
     {
+        this->set_accessed();
         return detail::getter<config_type, T>::get_nothrow(*this);
     }
 
-    boolean_type         const& as_boolean        (const std::nothrow_t&) const noexcept {return this->boolean_.value;}
-    integer_type         const& as_integer        (const std::nothrow_t&) const noexcept {return this->integer_.value;}
-    floating_type        const& as_floating       (const std::nothrow_t&) const noexcept {return this->floating_.value;}
-    string_type          const& as_string         (const std::nothrow_t&) const noexcept {return this->string_.value;}
-    offset_datetime_type const& as_offset_datetime(const std::nothrow_t&) const noexcept {return this->offset_datetime_.value;}
-    local_datetime_type  const& as_local_datetime (const std::nothrow_t&) const noexcept {return this->local_datetime_.value;}
-    local_date_type      const& as_local_date     (const std::nothrow_t&) const noexcept {return this->local_date_.value;}
-    local_time_type      const& as_local_time     (const std::nothrow_t&) const noexcept {return this->local_time_.value;}
-    array_type           const& as_array          (const std::nothrow_t&) const noexcept {return this->array_.value.get();}
-    table_type           const& as_table          (const std::nothrow_t&) const noexcept {return this->table_.value.get();}
+    boolean_type         const& as_boolean        (const std::nothrow_t&) const noexcept {this->set_accessed(); return this->boolean_.value;}
+    integer_type         const& as_integer        (const std::nothrow_t&) const noexcept {this->set_accessed(); return this->integer_.value;}
+    floating_type        const& as_floating       (const std::nothrow_t&) const noexcept {this->set_accessed(); return this->floating_.value;}
+    string_type          const& as_string         (const std::nothrow_t&) const noexcept {this->set_accessed(); return this->string_.value;}
+    offset_datetime_type const& as_offset_datetime(const std::nothrow_t&) const noexcept {this->set_accessed(); return this->offset_datetime_.value;}
+    local_datetime_type  const& as_local_datetime (const std::nothrow_t&) const noexcept {this->set_accessed(); return this->local_datetime_.value;}
+    local_date_type      const& as_local_date     (const std::nothrow_t&) const noexcept {this->set_accessed(); return this->local_date_.value;}
+    local_time_type      const& as_local_time     (const std::nothrow_t&) const noexcept {this->set_accessed(); return this->local_time_.value;}
+    array_type           const& as_array          (const std::nothrow_t&) const noexcept {this->set_accessed(); return this->array_.value.get();}
+    table_type           const& as_table          (const std::nothrow_t&) const noexcept {this->set_accessed(); return this->table_.value.get();}
 
-    boolean_type        & as_boolean        (const std::nothrow_t&) noexcept {return this->boolean_.value;}
-    integer_type        & as_integer        (const std::nothrow_t&) noexcept {return this->integer_.value;}
-    floating_type       & as_floating       (const std::nothrow_t&) noexcept {return this->floating_.value;}
-    string_type         & as_string         (const std::nothrow_t&) noexcept {return this->string_.value;}
-    offset_datetime_type& as_offset_datetime(const std::nothrow_t&) noexcept {return this->offset_datetime_.value;}
-    local_datetime_type & as_local_datetime (const std::nothrow_t&) noexcept {return this->local_datetime_.value;}
-    local_date_type     & as_local_date     (const std::nothrow_t&) noexcept {return this->local_date_.value;}
-    local_time_type     & as_local_time     (const std::nothrow_t&) noexcept {return this->local_time_.value;}
-    array_type          & as_array          (const std::nothrow_t&) noexcept {return this->array_.value.get();}
-    table_type          & as_table          (const std::nothrow_t&) noexcept {return this->table_.value.get();}
+    boolean_type        & as_boolean        (const std::nothrow_t&) noexcept {this->set_accessed(); return this->boolean_.value;}
+    integer_type        & as_integer        (const std::nothrow_t&) noexcept {this->set_accessed(); return this->integer_.value;}
+    floating_type       & as_floating       (const std::nothrow_t&) noexcept {this->set_accessed(); return this->floating_.value;}
+    string_type         & as_string         (const std::nothrow_t&) noexcept {this->set_accessed(); return this->string_.value;}
+    offset_datetime_type& as_offset_datetime(const std::nothrow_t&) noexcept {this->set_accessed(); return this->offset_datetime_.value;}
+    local_datetime_type & as_local_datetime (const std::nothrow_t&) noexcept {this->set_accessed(); return this->local_datetime_.value;}
+    local_date_type     & as_local_date     (const std::nothrow_t&) noexcept {this->set_accessed(); return this->local_date_.value;}
+    local_time_type     & as_local_time     (const std::nothrow_t&) noexcept {this->set_accessed(); return this->local_time_.value;}
+    array_type          & as_array          (const std::nothrow_t&) noexcept {this->set_accessed(); return this->array_.value.get();}
+    table_type          & as_table          (const std::nothrow_t&) noexcept {this->set_accessed(); return this->table_.value.get();}
 
     // }}}
 
@@ -7033,6 +7273,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_boolean()", value_t::boolean);
         }
+        this->set_accessed();
         return this->boolean_.value;
     }
     integer_type const& as_integer() const
@@ -7041,6 +7282,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_integer()", value_t::integer);
         }
+        this->set_accessed();
         return this->integer_.value;
     }
     floating_type const& as_floating() const
@@ -7049,6 +7291,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_floating()", value_t::floating);
         }
+        this->set_accessed();
         return this->floating_.value;
     }
     string_type const& as_string() const
@@ -7057,6 +7300,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_string()", value_t::string);
         }
+        this->set_accessed();
         return this->string_.value;
     }
     offset_datetime_type const& as_offset_datetime() const
@@ -7065,6 +7309,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_offset_datetime()", value_t::offset_datetime);
         }
+        this->set_accessed();
         return this->offset_datetime_.value;
     }
     local_datetime_type const& as_local_datetime() const
@@ -7073,6 +7318,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_local_datetime()", value_t::local_datetime);
         }
+        this->set_accessed();
         return this->local_datetime_.value;
     }
     local_date_type const& as_local_date() const
@@ -7081,6 +7327,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_local_date()", value_t::local_date);
         }
+        this->set_accessed();
         return this->local_date_.value;
     }
     local_time_type const& as_local_time() const
@@ -7089,6 +7336,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_local_time()", value_t::local_time);
         }
+        this->set_accessed();
         return this->local_time_.value;
     }
     array_type const& as_array() const
@@ -7097,6 +7345,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_array()", value_t::array);
         }
+        this->set_accessed();
         return this->array_.value.get();
     }
     table_type const& as_table() const
@@ -7105,6 +7354,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_table()", value_t::table);
         }
+        this->set_accessed();
         return this->table_.value.get();
     }
 
@@ -7117,6 +7367,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_boolean()", value_t::boolean);
         }
+        this->set_accessed();
         return this->boolean_.value;
     }
     integer_type& as_integer()
@@ -7125,6 +7376,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_integer()", value_t::integer);
         }
+        this->set_accessed();
         return this->integer_.value;
     }
     floating_type& as_floating()
@@ -7133,6 +7385,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_floating()", value_t::floating);
         }
+        this->set_accessed();
         return this->floating_.value;
     }
     string_type& as_string()
@@ -7141,6 +7394,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_string()", value_t::string);
         }
+        this->set_accessed();
         return this->string_.value;
     }
     offset_datetime_type& as_offset_datetime()
@@ -7149,6 +7403,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_offset_datetime()", value_t::offset_datetime);
         }
+        this->set_accessed();
         return this->offset_datetime_.value;
     }
     local_datetime_type& as_local_datetime()
@@ -7157,6 +7412,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_local_datetime()", value_t::local_datetime);
         }
+        this->set_accessed();
         return this->local_datetime_.value;
     }
     local_date_type& as_local_date()
@@ -7165,6 +7421,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_local_date()", value_t::local_date);
         }
+        this->set_accessed();
         return this->local_date_.value;
     }
     local_time_type& as_local_time()
@@ -7173,6 +7430,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_local_time()", value_t::local_time);
         }
+        this->set_accessed();
         return this->local_time_.value;
     }
     array_type& as_array()
@@ -7181,6 +7439,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_array()", value_t::array);
         }
+        this->set_accessed();
         return this->array_.value.get();
     }
     table_type& as_table()
@@ -7189,6 +7448,7 @@ class basic_value
         {
             this->throw_bad_cast("toml::value::as_table()", value_t::table);
         }
+        this->set_accessed();
         return this->table_.value.get();
     }
 
@@ -7598,9 +7858,21 @@ class basic_value
     comment_type const& comments() const noexcept {return this->comments_;}
     comment_type&       comments()       noexcept {return this->comments_;}
 
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+    bool accessed() const {return this->accessed_.load();}
+#endif
+
   private:
 
     // private helper functions =========================================== {{{
+
+    void set_accessed() const noexcept
+    {
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_.store(true);
+#endif
+        return;
+    }
 
     void cleanup() noexcept
     {
@@ -7618,6 +7890,9 @@ class basic_value
             case value_t::table           : { table_          .~table_storage           (); break; }
             default                       : { break; }
         }
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+        this->accessed_ = false;
+#endif
         this->type_ = value_t::empty;
         return;
     }
@@ -7649,6 +7924,12 @@ class basic_value
 
     template<typename TC>
     friend class basic_value;
+
+
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+    template<typename TC>
+    friend void detail::unset_access_flag(basic_value<TC>&);
+#endif
 
     // }}}
 
@@ -7684,6 +7965,10 @@ class basic_value
     };
     region_type  region_;
     comment_type comments_;
+
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+    mutable std::atomic<bool> accessed_;
+#endif
 };
 
 template<typename TC>
@@ -7993,6 +8278,48 @@ void change_region_of_value(basic_value<TC>& dst, const basic_value<TC>& src)
     dst.region_ = std::move(src.region_);
     return;
 }
+
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+template<typename TC>
+void unset_access_flag(basic_value<TC>& v)
+{
+    v.accessed_.store(false);
+}
+
+template<typename TC>
+void unset_access_flag_recursively(basic_value<TC>& v)
+{
+    switch(v.type())
+    {
+        case value_t::empty            : { return unset_access_flag(v); }
+        case value_t::boolean          : { return unset_access_flag(v); }
+        case value_t::integer          : { return unset_access_flag(v); }
+        case value_t::floating         : { return unset_access_flag(v); }
+        case value_t::string           : { return unset_access_flag(v); }
+        case value_t::offset_datetime  : { return unset_access_flag(v); }
+        case value_t::local_datetime   : { return unset_access_flag(v); }
+        case value_t::local_date       : { return unset_access_flag(v); }
+        case value_t::local_time       : { return unset_access_flag(v); }
+        case value_t::array:
+        {
+            for(auto& elem : v.as_array())
+            {
+                unset_access_flag_recursively(elem);
+            }
+            return unset_access_flag(v);
+        }
+        case value_t::table:
+        {
+            for(auto& kv : v.as_table())
+            {
+                unset_access_flag_recursively(kv.second);
+            }
+            return unset_access_flag(v);
+        }
+        default: { return unset_access_flag(v); }
+    }
+}
+#endif
 
 } // namespace detail
 } // namespace toml
@@ -10072,22 +10399,10 @@ class character_either final : public scanner_base
 
   public:
 
-    explicit character_either(std::initializer_list<char_type> cs) noexcept
-        : chars_(std::move(cs))
-    {
-        assert(! this->chars_.empty());
-    }
-
     template<std::size_t N>
     explicit character_either(const char (&cs)[N]) noexcept
-        : chars_(N-1, '\0')
-    {
-        static_assert(N >= 1, "");
-        for(std::size_t i=0; i+1<N; ++i)
-        {
-            chars_.at(i) = char_type(cs[i]);
-        }
-    }
+        : value_(cs), size_(N-1) // remove null character at the end
+    {}
     ~character_either() override = default;
 
     region scan(location& loc) const override;
@@ -10096,12 +10411,11 @@ class character_either final : public scanner_base
 
     scanner_base* clone() const override;
 
-    void push_back(const char_type c);
-
     std::string name() const override;
 
   private:
-    std::vector<char_type> chars_;
+    const char* value_;
+    std::size_t size_;
 };
 
 // ----------------------------------------------------------------------------
@@ -10187,12 +10501,6 @@ class sequence final: public scanner_base
 
     scanner_base* clone() const override;
 
-    template<typename Scanner>
-    void push_back(Scanner&& other_scanner)
-    {
-        this->others_.emplace_back(std::forward<Scanner>(other_scanner));
-    }
-
     std::string name() const override;
 
   private:
@@ -10238,12 +10546,6 @@ class either final: public scanner_base
     std::string expected_chars(location& loc) const override;
 
     scanner_base* clone() const override;
-
-    template<typename Scanner>
-    void push_back(Scanner&& other_scanner)
-    {
-        this->others_.emplace_back(std::forward<Scanner>(other_scanner));
-    }
 
     std::string name() const override;
 
@@ -10452,8 +10754,9 @@ TOML11_INLINE region character_either::scan(location& loc) const
 {
     if(loc.eof()) {return region{};}
 
-    for(const auto c : this->chars_)
+    for(std::size_t i=0; i<this->size_; ++i)
     {
+        const auto c = char_type(this->value_[i]);
         if(loc.current() == c)
         {
             const auto first = loc;
@@ -10466,30 +10769,32 @@ TOML11_INLINE region character_either::scan(location& loc) const
 
 TOML11_INLINE std::string character_either::expected_chars(location&) const
 {
-    assert( ! chars_.empty());
+    assert( this->value_ );
+    assert( this->size_ != 0 );
 
     std::string expected;
-    if(chars_.size() == 1)
+    if(this->size_ == 1)
     {
-        expected += show_char(chars_.at(0));
+        expected += show_char(char_type(value_[0]));
     }
-    else if(chars_.size() == 2)
+    else if(this->size_ == 2)
     {
-        expected += show_char(chars_.at(0)) + " or " + show_char(chars_.at(1));
+        expected += show_char(char_type(value_[0])) + " or " +
+                    show_char(char_type(value_[1]));
     }
     else
     {
-        for(std::size_t i=0; i<chars_.size(); ++i)
+        for(std::size_t i=0; i<this->size_; ++i)
         {
             if(i != 0)
             {
                 expected += ", ";
             }
-            if(i + 1 == chars_.size())
+            if(i + 1 == this->size_)
             {
                 expected += "or ";
             }
-            expected += show_char(chars_.at(i));
+            expected += show_char(char_type(value_[i]));
         }
     }
     return expected;
@@ -10500,20 +10805,16 @@ TOML11_INLINE scanner_base* character_either::clone() const
     return new character_either(*this);
 }
 
-TOML11_INLINE void character_either::push_back(const char_type c)
-{
-    chars_.push_back(c);
-}
-
 TOML11_INLINE std::string character_either::name() const
 {
     std::string n("character_either{");
-    for(const auto c : this->chars_)
+    for(std::size_t i=0; i<this->size_; ++i)
     {
+        const auto c = char_type(this->value_[i]);
         n += show_char(c);
         n += ", ";
     }
-    if( ! this->chars_.empty())
+    if(this->size_ != 0)
     {
         n.pop_back();
         n.pop_back();
@@ -10860,10 +11161,10 @@ using char_type = location::char_type;
 
 // avoid redundant representation and out-of-unicode sequence
 
-character_in_range utf8_1byte (const spec&);
-sequence           utf8_2bytes(const spec&);
-sequence           utf8_3bytes(const spec&);
-sequence           utf8_4bytes(const spec&);
+character_in_range const& utf8_1byte (const spec&);
+sequence           const& utf8_2bytes(const spec&);
+sequence           const& utf8_3bytes(const spec&);
+sequence           const& utf8_4bytes(const spec&);
 
 class non_ascii final : public scanner_base
 {
@@ -10873,12 +11174,28 @@ class non_ascii final : public scanner_base
 
   public:
 
-    explicit non_ascii(const spec& s) noexcept;
+    explicit non_ascii(const spec& s) noexcept
+        : utf8_2B_(utf8_2bytes(s)),
+          utf8_3B_(utf8_3bytes(s)),
+          utf8_4B_(utf8_4bytes(s))
+    {}
     ~non_ascii() override = default;
 
     region scan(location& loc) const override
     {
-        return scanner_.scan(loc);
+        {
+            const auto reg = utf8_2B_.scan(loc);
+            if(reg.is_ok()) {return reg;}
+        }
+        {
+            const auto reg = utf8_3B_.scan(loc);
+            if(reg.is_ok()) {return reg;}
+        }
+        {
+            const auto reg = utf8_4B_.scan(loc);
+            if(reg.is_ok()) {return reg;}
+        }
+        return region{};
     }
 
     std::string expected_chars(location&) const override
@@ -10897,34 +11214,35 @@ class non_ascii final : public scanner_base
     }
 
   private:
-
-    either scanner_;
+    sequence utf8_2B_;
+    sequence utf8_3B_;
+    sequence utf8_4B_;
 };
 
 // ===========================================================================
 // Whitespace
 
-character_either wschar(const spec&);
+character_either const& wschar(const spec&);
 
-repeat_at_least ws(const spec& s);
+repeat_at_least const& ws(const spec& s);
 
 // ===========================================================================
 // Newline
 
-either newline(const spec&);
+either const& newline(const spec&);
 
 // ===========================================================================
 // Comments
 
-either allowed_comment_char(const spec& s);
+either const& allowed_comment_char(const spec& s);
 
 // XXX Note that it does not take newline
-sequence comment(const spec& s);
+sequence const& comment(const spec& s);
 
 // ===========================================================================
 // Boolean
 
-either boolean(const spec&);
+either const& boolean(const spec&);
 
 // ===========================================================================
 // Integer
@@ -10937,7 +11255,11 @@ class digit final : public scanner_base
 
   public:
 
-    explicit digit(const spec&) noexcept;
+    explicit digit(const spec&) noexcept
+      : scanner_(char_type('0'), char_type('9'))
+    {}
+
+
     ~digit() override = default;
 
     region scan(location& loc) const override
@@ -10973,12 +11295,23 @@ class alpha final : public scanner_base
 
   public:
 
-    explicit alpha(const spec&) noexcept;
+    explicit alpha(const spec&) noexcept
+      : lowercase_(char_type('a'), char_type('z')),
+        uppercase_(char_type('A'), char_type('Z'))
+    {}
     ~alpha() override = default;
 
     region scan(location& loc) const override
     {
-        return scanner_.scan(loc);
+        {
+            const auto reg = lowercase_.scan(loc);
+            if(reg.is_ok()) {return reg;}
+        }
+        {
+            const auto reg = uppercase_.scan(loc);
+            if(reg.is_ok()) {return reg;}
+        }
+        return region{};
     }
 
     std::string expected_chars(location&) const override
@@ -10998,7 +11331,8 @@ class alpha final : public scanner_base
 
   private:
 
-    either scanner_;
+    character_in_range lowercase_;
+    character_in_range uppercase_;
 };
 
 class hexdig final : public scanner_base
@@ -11009,12 +11343,28 @@ class hexdig final : public scanner_base
 
   public:
 
-    explicit hexdig(const spec& s) noexcept;
+    explicit hexdig(const spec& s) noexcept
+      : digit_(s),
+        lowercase_(char_type('a'), char_type('f')),
+        uppercase_(char_type('A'), char_type('F'))
+    {}
     ~hexdig() override = default;
 
     region scan(location& loc) const override
     {
-        return scanner_.scan(loc);
+        {
+            const auto reg = digit_.scan(loc);
+            if(reg.is_ok()) {return reg;}
+        }
+        {
+            const auto reg = lowercase_.scan(loc);
+            if(reg.is_ok()) {return reg;}
+        }
+        {
+            const auto reg = uppercase_.scan(loc);
+            if(reg.is_ok()) {return reg;}
+        }
+        return region{};
     }
 
     std::string expected_chars(location&) const override
@@ -11034,61 +11384,63 @@ class hexdig final : public scanner_base
 
   private:
 
-    either scanner_;
+    digit              digit_;
+    character_in_range lowercase_;
+    character_in_range uppercase_;
 };
 
-sequence num_suffix(const spec& s);
+sequence const& num_suffix(const spec& s);
 
-sequence dec_int(const spec& s);
-sequence hex_int(const spec& s);
-sequence oct_int(const spec&);
-sequence bin_int(const spec&);
-either   integer(const spec& s);
+sequence const& dec_int(const spec& s);
+sequence const& hex_int(const spec& s);
+sequence const& oct_int(const spec&);
+sequence const& bin_int(const spec&);
+either   const& integer(const spec& s);
 
 // ===========================================================================
 // Floating
 
-sequence zero_prefixable_int(const spec& s);
-sequence fractional_part(const spec& s);
-sequence exponent_part(const spec& s);
-sequence hex_floating(const spec& s);
-either   floating(const spec& s);
+sequence const& zero_prefixable_int(const spec& s);
+sequence const& fractional_part(const spec& s);
+sequence const& exponent_part(const spec& s);
+sequence const& hex_floating(const spec& s);
+either   const& floating(const spec& s);
 
 // ===========================================================================
 // Datetime
 
-sequence local_date(const spec& s);
-sequence local_time(const spec& s);
-either time_offset(const spec& s);
-sequence full_time(const spec& s);
-character_either time_delim(const spec&);
-sequence local_datetime(const spec& s);
-sequence offset_datetime(const spec& s);
+sequence const& local_date(const spec& s);
+sequence const& local_time(const spec& s);
+either   const& time_offset(const spec& s);
+sequence const& full_time(const spec& s);
+character_either const& time_delim(const spec&);
+sequence const& local_datetime(const spec& s);
+sequence const& offset_datetime(const spec& s);
 
 // ===========================================================================
 // String
 
-sequence escaped(const spec& s);
+sequence const& escaped_x2(const spec& s);
+sequence const& escaped_u4(const spec& s);
+sequence const& escaped_U8(const spec& s);
 
-either basic_char(const spec& s);
-
-sequence basic_string(const spec& s);
+sequence const& escaped     (const spec& s);
+either   const& basic_char  (const spec& s);
+sequence const& basic_string(const spec& s);
 
 // ---------------------------------------------------------------------------
 // multiline string
 
-sequence escaped_newline(const spec& s);
-sequence ml_basic_string(const spec& s);
+sequence const& escaped_newline(const spec& s);
+sequence const& ml_basic_string(const spec& s);
 
 // ---------------------------------------------------------------------------
 // literal string
 
-either literal_char(const spec& s);
-sequence literal_string(const spec& s);
-
-sequence ml_literal_string(const spec& s);
-
-either string(const spec& s);
+either   const& literal_char(const spec& s);
+sequence const& literal_string(const spec& s);
+sequence const& ml_literal_string(const spec& s);
+either   const& string(const spec& s);
 
 // ===========================================================================
 // Keys
@@ -11132,16 +11484,11 @@ class non_ascii_key_char final : public scanner_base
 };
 
 
-repeat_at_least unquoted_key(const spec& s);
-
-either quoted_key(const spec& s);
-
-either simple_key(const spec& s);
-
-sequence dot_sep(const spec& s);
-
-sequence dotted_key(const spec& s);
-
+repeat_at_least const& unquoted_key(const spec& s);
+either   const& quoted_key(const spec& s);
+either   const& simple_key(const spec& s);
+sequence const& dot_sep(const spec& s);
+sequence const& dotted_key(const spec& s);
 
 class key final : public scanner_base
 {
@@ -11151,12 +11498,23 @@ class key final : public scanner_base
 
   public:
 
-    explicit key(const spec& s) noexcept;
+    explicit key(const spec& s) noexcept
+        : dotted_(dotted_key(s)),
+          simple_(simple_key(s))
+    {}
     ~key() override = default;
 
     region scan(location& loc) const override
     {
-        return scanner_.scan(loc);
+        {
+            const auto reg = dotted_.scan(loc);
+            if(reg.is_ok()) {return reg;}
+        }
+        {
+            const auto reg = simple_.scan(loc);
+            if(reg.is_ok()) {return reg;}
+        }
+        return region{};
     }
 
     std::string expected_chars(location&) const override
@@ -11176,22 +11534,23 @@ class key final : public scanner_base
 
   private:
 
-    either scanner_;
+    sequence dotted_;
+    either   simple_;
 };
 
-sequence keyval_sep(const spec& s);
+sequence const& keyval_sep(const spec& s);
 
 // ===========================================================================
 // Table key
 
-sequence std_table(const spec& s);
+sequence const& std_table(const spec& s);
 
-sequence array_table(const spec& s);
+sequence const& array_table(const spec& s);
 
 // ===========================================================================
 // extension: null
 
-literal null_value(const spec&);
+literal const& null_value(const spec&);
 
 } // namespace syntax
 } // namespace detail
@@ -11212,535 +11571,669 @@ namespace syntax
 
 using char_type = location::char_type;
 
+template<typename F>
+struct syntax_cache
+{
+    using value_type = cxx::return_type_of_t<F, const spec&>;
+    static_assert(std::is_base_of<scanner_base, value_type>::value, "");
+
+    explicit syntax_cache(F f)
+        : func_(std::move(f)), cache_(cxx::make_nullopt())
+    {}
+
+    value_type const& at(const spec& s)
+    {
+        if( ! this->cache_.has_value() || this->cache_.value().first != s)
+        {
+            this->cache_ = std::make_pair(s, func_(s));
+        }
+        return this->cache_.value().second;
+    }
+
+  private:
+    F func_;
+    cxx::optional<std::pair<spec, value_type>> cache_;
+};
+
+template<typename F>
+syntax_cache<cxx::remove_cvref_t<F>> make_cache(F&& f)
+{
+    return syntax_cache<cxx::remove_cvref_t<F>>(std::forward<F>(f));
+}
+
 // ===========================================================================
 // UTF-8
 
 // avoid redundant representation and out-of-unicode sequence
 
-TOML11_INLINE character_in_range utf8_1byte(const spec&)
+TOML11_INLINE character_in_range const& utf8_1byte(const spec&)
 {
-    return character_in_range(0x00, 0x7F);
+    static thread_local character_in_range cache(0x00, 0x7F);
+    return cache;
 }
 
-TOML11_INLINE sequence utf8_2bytes(const spec&)
+TOML11_INLINE sequence const& utf8_2bytes(const spec&)
 {
-    return sequence(character_in_range(0xC2, 0xDF),
-                    character_in_range(0x80, 0xBF));
+    static thread_local sequence cache(
+            character_in_range(0xC2, 0xDF),
+            character_in_range(0x80, 0xBF));
+    return cache;
 }
 
-TOML11_INLINE sequence utf8_3bytes(const spec&)
+TOML11_INLINE sequence const& utf8_3bytes(const spec&)
 {
-    return sequence(/*1~2 bytes = */either(
+    static thread_local sequence cache(/*1~2 bytes = */either(
         sequence(character         (0xE0),       character_in_range(0xA0, 0xBF)),
         sequence(character_in_range(0xE1, 0xEC), character_in_range(0x80, 0xBF)),
         sequence(character         (0xED),       character_in_range(0x80, 0x9F)),
         sequence(character_in_range(0xEE, 0xEF), character_in_range(0x80, 0xBF))
     ), /*3rd byte = */ character_in_range(0x80, 0xBF));
+
+    return cache;
 }
 
-TOML11_INLINE sequence utf8_4bytes(const spec&)
+TOML11_INLINE sequence const& utf8_4bytes(const spec&)
 {
-    return sequence(/*1~2 bytes = */either(
+    static thread_local sequence cache(/*1~2 bytes = */either(
         sequence(character         (0xF0),       character_in_range(0x90, 0xBF)),
         sequence(character_in_range(0xF1, 0xF3), character_in_range(0x80, 0xBF)),
         sequence(character         (0xF4),       character_in_range(0x80, 0x8F))
     ), character_in_range(0x80, 0xBF), character_in_range(0x80, 0xBF));
+
+    return cache;
 }
-
-TOML11_INLINE non_ascii::non_ascii(const spec& s) noexcept
-    : scanner_(utf8_2bytes(s), utf8_3bytes(s), utf8_4bytes(s))
-{}
-
 
 // ===========================================================================
 // Whitespace
 
-TOML11_INLINE character_either wschar(const spec&)
+TOML11_INLINE character_either const& wschar(const spec&)
 {
-    return character_either{char_type(' '), char_type('\t')};
+    static thread_local character_either cache(" \t");
+    return cache;
 }
 
-TOML11_INLINE repeat_at_least ws(const spec& s)
+TOML11_INLINE repeat_at_least const& ws(const spec& sp)
 {
-    return repeat_at_least(0, wschar(s));
+    static thread_local auto cache = make_cache([](const spec& s){
+        return repeat_at_least(0, wschar(s));
+    });
+    return cache.at(sp);
 }
 
 // ===========================================================================
 // Newline
 
-TOML11_INLINE either newline(const spec&)
+TOML11_INLINE either const& newline(const spec&)
 {
-    return either(character(char_type('\n')), literal("\r\n"));
+    static thread_local either cache(character(char_type('\n')), literal("\r\n"));
+    return cache;
 }
 
 // ===========================================================================
 // Comments
 
-TOML11_INLINE either allowed_comment_char(const spec& s)
+TOML11_INLINE either const& allowed_comment_char(const spec& sp)
 {
-    if(s.v1_1_0_allow_control_characters_in_comments)
-    {
-        return either(
-            character_in_range(0x01, 0x09),
-            character_in_range(0x0E, 0x7F),
-            non_ascii(s)
-        );
-    }
-    else
-    {
-        return either(
-            character(0x09),
-            character_in_range(0x20, 0x7E),
-            non_ascii(s)
-        );
-    }
+    static thread_local auto cache = make_cache([](const spec& s){
+            if(s.v1_1_0_allow_control_characters_in_comments)
+            {
+                return either(
+                    character_in_range(0x01, 0x09),
+                    character_in_range(0x0E, 0x7F),
+                    non_ascii(s)
+                );
+            }
+            else
+            {
+                return either(
+                    character(0x09),
+                    character_in_range(0x20, 0x7E),
+                    non_ascii(s)
+                );
+            }
+        });
+    return cache.at(sp);
 }
 
 // XXX Note that it does not take newline
-TOML11_INLINE sequence comment(const spec& s)
+TOML11_INLINE sequence const& comment(const spec& sp)
 {
-    return sequence(character(char_type('#')),
+    static thread_local auto cache = make_cache([](const spec& s){
+        return sequence(character(char_type('#')),
                     repeat_at_least(0, allowed_comment_char(s)));
+    });
+    return cache.at(sp);
 }
 
 // ===========================================================================
 // Boolean
 
-TOML11_INLINE either boolean(const spec&)
+TOML11_INLINE either const& boolean(const spec&)
 {
-    return either(literal("true"), literal("false"));
+    static thread_local either cache(literal("true"), literal("false"));
+    return cache;
 }
 
 // ===========================================================================
 // Integer
 
-TOML11_INLINE digit::digit(const spec&) noexcept
-    : scanner_(char_type('0'), char_type('9'))
-{}
-
-TOML11_INLINE alpha::alpha(const spec&) noexcept
-    : scanner_(
-        character_in_range(char_type('a'), char_type('z')),
-        character_in_range(char_type('A'), char_type('Z'))
-    )
-{}
-
-TOML11_INLINE hexdig::hexdig(const spec& s) noexcept
-    : scanner_(
-        digit(s),
-        character_in_range(char_type('a'), char_type('f')),
-        character_in_range(char_type('A'), char_type('F'))
-    )
-{}
-
 // non-digit-graph = ([a-zA-Z]|unicode mb char)
 // graph           = ([a-zA-Z0-9]|unicode mb char)
 // suffix          = _ non-digit-graph (graph | _graph)
-TOML11_INLINE sequence num_suffix(const spec& s)
+TOML11_INLINE sequence const& num_suffix(const spec& sp)
 {
-    const auto non_digit_graph = [&s]() {
-        return either(
-            alpha(s),
-            non_ascii(s)
-        );
-    };
-    const auto graph = [&s]() {
-        return either(
-            alpha(s),
-            digit(s),
-            non_ascii(s)
-        );
-    };
+    static thread_local auto cache = make_cache([](const spec& s) {
+        const auto non_digit_graph = [&s]() {
+            return either(
+                alpha(s),
+                non_ascii(s)
+            );
+        };
+        const auto graph = [&s]() {
+            return either(
+                alpha(s),
+                digit(s),
+                non_ascii(s)
+            );
+        };
 
-    return sequence(
-            character(char_type('_')),
-            non_digit_graph(),
-            repeat_at_least(0,
-                either(
-                    sequence(character(char_type('_')), graph()),
-                    graph()
-                )
-            )
-        );
-}
-
-TOML11_INLINE sequence dec_int(const spec& s)
-{
-    const auto digit19 = []() {
-        return character_in_range(char_type('1'), char_type('9'));
-    };
-    return sequence(
-            maybe(character_either{char_type('-'), char_type('+')}),
-            either(
-                sequence(
-                    digit19(),
-                    repeat_at_least(1,
-                        either(
-                            digit(s),
-                            sequence(character(char_type('_')), digit(s))
-                        )
+        return sequence(
+                character(char_type('_')),
+                non_digit_graph(),
+                repeat_at_least(0,
+                    either(
+                        sequence(character(char_type('_')), graph()),
+                        graph()
                     )
-                ),
-                digit(s)
-            )
-        );
-}
-
-TOML11_INLINE sequence hex_int(const spec& s)
-{
-    return sequence(
-            literal("0x"),
-            hexdig(s),
-            repeat_at_least(0,
-                either(
-                    hexdig(s),
-                    sequence(character(char_type('_')), hexdig(s))
                 )
-            )
-        );
+            );
+        });
+    return cache.at(sp);
 }
 
-TOML11_INLINE sequence oct_int(const spec&)
+TOML11_INLINE sequence const& dec_int(const spec& sp)
 {
-    const auto digit07 = []() {
-        return character_in_range(char_type('0'), char_type('7'));
-    };
-    return sequence(
-            literal("0o"),
-            digit07(),
-            repeat_at_least(0,
+    static thread_local auto cache = make_cache([](const spec& s) {
+        const auto digit19 = []() {
+            return character_in_range(char_type('1'), char_type('9'));
+        };
+        return sequence(
+                maybe(character_either("+-")),
                 either(
-                    digit07(),
-                    sequence(character(char_type('_')), digit07())
+                    sequence(
+                        digit19(),
+                        repeat_at_least(1,
+                            either(
+                                digit(s),
+                                sequence(character(char_type('_')), digit(s))
+                            )
+                        )
+                    ),
+                    digit(s)
                 )
-            )
-        );
+            );
+        });
+    return cache.at(sp);
 }
 
-TOML11_INLINE sequence bin_int(const spec&)
+TOML11_INLINE sequence const& hex_int(const spec& sp)
 {
-    const auto digit01 = []() {
-        return character_either{char_type('0'), char_type('1')};
-    };
-    return sequence(
-            literal("0b"),
-            digit01(),
-            repeat_at_least(0,
-                either(
-                    digit01(),
-                    sequence(character(char_type('_')), digit01())
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(
+                literal("0x"),
+                hexdig(s),
+                repeat_at_least(0,
+                    either(
+                        hexdig(s),
+                        sequence(character(char_type('_')), hexdig(s))
+                    )
                 )
-            )
-        );
+            );
+        });
+    return cache.at(sp);
 }
 
-TOML11_INLINE either integer(const spec& s)
+TOML11_INLINE sequence const& oct_int(const spec& s)
 {
-    return either(
-            hex_int(s),
-            oct_int(s),
-            bin_int(s),
-            dec_int(s)
-        );
+    static thread_local auto cache = make_cache([](const spec&) {
+        const auto digit07 = []() {
+            return character_in_range(char_type('0'), char_type('7'));
+        };
+        return sequence(
+                literal("0o"),
+                digit07(),
+                repeat_at_least(0,
+                    either(
+                        digit07(),
+                        sequence(character(char_type('_')), digit07())
+                    )
+                )
+            );
+        });
+    return cache.at(s);
+}
+
+TOML11_INLINE sequence const& bin_int(const spec& s)
+{
+    static thread_local auto cache = make_cache([](const spec&) {
+        const auto digit01 = []() {
+            return character_either("01");
+        };
+        return sequence(
+                literal("0b"),
+                digit01(),
+                repeat_at_least(0,
+                    either(
+                        digit01(),
+                        sequence(character(char_type('_')), digit01())
+                    )
+                )
+            );
+        });
+    return cache.at(s);
+}
+
+TOML11_INLINE either const& integer(const spec& sp)
+{
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return either(
+                hex_int(s),
+                oct_int(s),
+                bin_int(s),
+                dec_int(s)
+            );
+        });
+    return cache.at(sp);
 }
 
 
 // ===========================================================================
 // Floating
 
-TOML11_INLINE sequence zero_prefixable_int(const spec& s)
+TOML11_INLINE sequence const& zero_prefixable_int(const spec& sp)
 {
-    return sequence(
-            digit(s),
-            repeat_at_least(0,
-                either(
-                    digit(s),
-                    sequence(character('_'), digit(s))
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(
+                digit(s),
+                repeat_at_least(0,
+                    either(
+                        digit(s),
+                        sequence(character('_'), digit(s))
+                    )
                 )
-            )
-        );
+            );
+        });
+    return cache.at(sp);
 }
 
-TOML11_INLINE sequence fractional_part(const spec& s)
+TOML11_INLINE sequence const& fractional_part(const spec& sp)
 {
-    return sequence(
-            character('.'),
-            zero_prefixable_int(s)
-        );
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(
+                character('.'),
+                zero_prefixable_int(s)
+            );
+        });
+    return cache.at(sp);
 }
 
-TOML11_INLINE sequence exponent_part(const spec& s)
+TOML11_INLINE sequence const& exponent_part(const spec& sp)
 {
-    return sequence(
-            character_either{char_type('e'), char_type('E')},
-            maybe(character_either{char_type('+'), char_type('-')}),
-            zero_prefixable_int(s)
-        );
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(
+                character_either("eE"),
+                maybe(character_either("+-")),
+                zero_prefixable_int(s)
+            );
+        });
+    return cache.at(sp);
 }
 
-TOML11_INLINE sequence hex_floating(const spec& s)
+TOML11_INLINE sequence const& hex_floating(const spec& sp)
 {
-    // C99 hexfloat (%a)
-    // [+-]? 0x ( [0-9a-fA-F]*\.[0-9a-fA-F]+ | [0-9a-fA-F]+\.? ) [pP] [+-]? [0-9]+
+    static thread_local auto cache = make_cache([](const spec& s) {
+        // C99 hexfloat (%a)
+        // [+-]? 0x ( [0-9a-fA-F]*\.[0-9a-fA-F]+ | [0-9a-fA-F]+\.? ) [pP] [+-]? [0-9]+
 
-    // - 0x(int).(frac)p[+-](int)
-    // - 0x(int).p[+-](int)
-    // - 0x.(frac)p[+-](int)
-    // - 0x(int)p[+-](int)
+        // - 0x(int).(frac)p[+-](int)
+        // - 0x(int).p[+-](int)
+        // - 0x.(frac)p[+-](int)
+        // - 0x(int)p[+-](int)
 
-    return sequence(
-            maybe(character_either{char_type('+'), char_type('-')}),
-            character('0'),
-            character_either{char_type('x'), char_type('X')},
-            either(
+        return sequence(
+                maybe(character_either("+-")),
+                character('0'),
+                character_either("xX"),
+                either(
+                    sequence(
+                        repeat_at_least(0, hexdig(s)),
+                        character('.'),
+                        repeat_at_least(1, hexdig(s))
+                    ),
+                    sequence(
+                        repeat_at_least(1, hexdig(s)),
+                        maybe(character('.'))
+                    )
+                ),
+                character_either("pP"),
+                maybe(character_either("+-")),
+                repeat_at_least(1, character_in_range('0', '9'))
+            );
+        });
+    return cache.at(sp);
+}
+
+TOML11_INLINE either const& floating(const spec& sp)
+{
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return either(
                 sequence(
-                    repeat_at_least(0, hexdig(s)),
-                    character('.'),
-                    repeat_at_least(1, hexdig(s))
+                    dec_int(s),
+                    either(
+                        exponent_part(s),
+                        sequence(fractional_part(s), maybe(exponent_part(s)))
+                    )
                 ),
                 sequence(
-                    repeat_at_least(1, hexdig(s)),
-                    maybe(character('.'))
+                    maybe(character_either("+-")),
+                    either(literal("inf"), literal("nan"))
                 )
-            ),
-            character_either{char_type('p'), char_type('P')},
-            maybe(character_either{char_type('+'), char_type('-')}),
-            repeat_at_least(1, character_in_range('0', '9'))
-        );
-}
-
-TOML11_INLINE either floating(const spec& s)
-{
-    return either(
-            sequence(
-                dec_int(s),
-                either(
-                    exponent_part(s),
-                    sequence(fractional_part(s), maybe(exponent_part(s)))
-                )
-            ),
-            sequence(
-                maybe(character_either{char_type('-'), char_type('+')}),
-                either(literal("inf"), literal("nan"))
-            )
-        );
+            );
+        });
+    return cache.at(sp);
 }
 
 // ===========================================================================
 // Datetime
 
-TOML11_INLINE sequence local_date(const spec& s)
+TOML11_INLINE sequence const& local_date(const spec& sp)
 {
-    return sequence(
-            repeat_exact(4, digit(s)),
-            character('-'),
-            repeat_exact(2, digit(s)),
-            character('-'),
-            repeat_exact(2, digit(s))
-        );
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(
+                repeat_exact(4, digit(s)),
+                character('-'),
+                repeat_exact(2, digit(s)),
+                character('-'),
+                repeat_exact(2, digit(s))
+            );
+        });
+    return cache.at(sp);
 }
-TOML11_INLINE sequence local_time(const spec& s)
+TOML11_INLINE sequence const& local_time(const spec& sp)
 {
-    auto time = sequence(
-            repeat_exact(2, digit(s)),
-            character(':'),
-            repeat_exact(2, digit(s))
-        );
-
-    if(s.v1_1_0_make_seconds_optional)
-    {
-        time.push_back(maybe(sequence(
+    static thread_local auto cache = make_cache([](const spec& s) {
+        if(s.v1_1_0_make_seconds_optional)
+        {
+            return sequence(
+                repeat_exact(2, digit(s)),
+                character(':'),
+                repeat_exact(2, digit(s)),
+                maybe(sequence(
+                    character(':'),
+                    repeat_exact(2, digit(s)),
+                    maybe(sequence(character('.'), repeat_at_least(1, digit(s))))
+                )));
+        }
+        else
+        {
+            return sequence(
+                repeat_exact(2, digit(s)),
+                character(':'),
+                repeat_exact(2, digit(s)),
                 character(':'),
                 repeat_exact(2, digit(s)),
                 maybe(sequence(character('.'), repeat_at_least(1, digit(s))))
-            )));
-    }
-    else
-    {
-        time.push_back(character(':'));
-        time.push_back(repeat_exact(2, digit(s)));
-        time.push_back(
-            maybe(sequence(character('.'), repeat_at_least(1, digit(s))))
-        );
-    }
-
-    return time;
+            );
+        }
+        });
+    return cache.at(sp);
 }
-TOML11_INLINE either time_offset(const spec& s)
+TOML11_INLINE either const& time_offset(const spec& sp)
 {
-    return either(
-            character_either{'Z', 'z'},
-            sequence(character_either{'+', '-'},
-                     repeat_exact(2, digit(s)),
-                     character(':'),
-                     repeat_exact(2, digit(s))
-             )
-        );
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return either(
+                character_either("zZ"),
+                sequence(character_either("+-"),
+                         repeat_exact(2, digit(s)),
+                         character(':'),
+                         repeat_exact(2, digit(s))
+                 )
+            );
+        });
+    return cache.at(sp);
 }
-TOML11_INLINE sequence full_time(const spec& s)
+TOML11_INLINE sequence const& full_time(const spec& sp)
 {
-    return sequence(local_time(s), time_offset(s));
+    static thread_local auto cache = make_cache([](const spec& s) {
+            return sequence(local_time(s), time_offset(s));
+        });
+    return cache.at(sp);
 }
-TOML11_INLINE character_either time_delim(const spec&)
+TOML11_INLINE character_either const& time_delim(const spec& sp)
 {
-    return character_either{'T', 't', ' '};
+    static thread_local auto cache = make_cache([](const spec&) {
+            return character_either("Tt ");
+        });
+    return cache.at(sp);
 }
-TOML11_INLINE sequence local_datetime(const spec& s)
+TOML11_INLINE sequence const& local_datetime(const spec& sp)
 {
-    return sequence(local_date(s), time_delim(s), local_time(s));
+    static thread_local auto cache = make_cache([](const spec& s) {
+            return sequence(local_date(s), time_delim(s), local_time(s));
+        });
+    return cache.at(sp);
 }
-TOML11_INLINE sequence offset_datetime(const spec& s)
+TOML11_INLINE sequence const& offset_datetime(const spec& sp)
 {
-    return sequence(local_date(s), time_delim(s), full_time(s));
+    static thread_local auto cache = make_cache([](const spec& s) {
+            return sequence(local_date(s), time_delim(s), full_time(s));
+        });
+    return cache.at(sp);
 }
 
 // ===========================================================================
 // String
 
-TOML11_INLINE sequence escaped(const spec& s)
+TOML11_INLINE sequence const& escaped_x2(const spec& sp)
 {
-    character_either escape_char{
-        '\"','\\', 'b', 'f', 'n', 'r', 't'
-    };
-    if(s.v1_1_0_add_escape_sequence_e)
-    {
-        escape_char.push_back(char_type('e'));
-    }
-
-    either escape_seq(
-            std::move(escape_char),
-            sequence(character('u'), repeat_exact(4, hexdig(s))),
-            sequence(character('U'), repeat_exact(8, hexdig(s)))
-        );
-
-    if(s.v1_1_0_add_escape_sequence_x)
-    {
-        escape_seq.push_back(
-            sequence(character('x'), repeat_exact(2, hexdig(s)))
-        );
-    }
-
-    return sequence(
-            character('\\'),
-            std::move(escape_seq)
-        );
+    static thread_local auto cache = make_cache([](const spec& s) {
+            return sequence(character('x'), repeat_exact(2, hexdig(s)));
+        });
+    return cache.at(sp);
+}
+TOML11_INLINE sequence const& escaped_u4(const spec& sp)
+{
+    static thread_local auto cache = make_cache([](const spec& s) {
+            return sequence(character('u'), repeat_exact(4, hexdig(s)));
+        });
+    return cache.at(sp);
+}
+TOML11_INLINE sequence const& escaped_U8(const spec& sp)
+{
+    static thread_local auto cache = make_cache([](const spec& s) {
+            return sequence(character('U'), repeat_exact(8, hexdig(s)));
+        });
+    return cache.at(sp);
 }
 
-TOML11_INLINE either basic_char(const spec& s)
+TOML11_INLINE sequence const& escaped(const spec& sp)
 {
-    const auto basic_unescaped = [&s]() {
-        return either(
-                wschar(s),
-                character(0x21),                // 22 is "
-                character_in_range(0x23, 0x5B), // 5C is backslash
-                character_in_range(0x5D, 0x7E), // 7F is DEL
-                non_ascii(s)
+    static thread_local auto cache = make_cache([](const spec& s) {
+        const auto escape_char = [&s] {
+            if(s.v1_1_0_add_escape_sequence_e)
+            {
+                return character_either("\"\\bfnrte");
+            }
+            else
+            {
+                return character_either("\"\\bfnrt");
+            }
+        };
+
+        const auto escape_seq = [&s, &escape_char] {
+            if(s.v1_1_0_add_escape_sequence_x)
+            {
+                return either(
+                    escape_char(),
+                    escaped_u4(s),
+                    escaped_U8(s),
+                    escaped_x2(s)
+                );
+            }
+            else
+            {
+                return either(
+                    escape_char(),
+                    escaped_u4(s),
+                    escaped_U8(s)
+                );
+            }
+        };
+
+        return sequence(character('\\'), escape_seq());
+    });
+    return cache.at(sp);
+}
+
+TOML11_INLINE either const& basic_char(const spec& sp)
+{
+    static thread_local auto cache = make_cache([](const spec& s) {
+        const auto basic_unescaped = [&s]() {
+            return either(
+                    wschar(s),
+                    character(0x21),                // 22 is "
+                    character_in_range(0x23, 0x5B), // 5C is backslash
+                    character_in_range(0x5D, 0x7E), // 7F is DEL
+                    non_ascii(s)
+                );
+        };
+        return either(basic_unescaped(), escaped(s));
+    });
+    return cache.at(sp);
+}
+
+TOML11_INLINE sequence const& basic_string(const spec& sp)
+{
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(
+                character('"'),
+                repeat_at_least(0, basic_char(s)),
+                character('"')
             );
-    };
-    return either(basic_unescaped(), escaped(s));
-}
-
-TOML11_INLINE sequence basic_string(const spec& s)
-{
-    return sequence(
-            character('"'),
-            repeat_at_least(0, basic_char(s)),
-            character('"')
-        );
+    });
+    return cache.at(sp);
 }
 
 // ---------------------------------------------------------------------------
 // multiline string
 
-TOML11_INLINE sequence escaped_newline(const spec& s)
+TOML11_INLINE sequence const& escaped_newline(const spec& sp)
 {
-    return sequence(
-            character('\\'), ws(s), newline(s),
-            repeat_at_least(0, either(wschar(s), newline(s)))
-        );
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(
+                character('\\'), ws(s), newline(s),
+                repeat_at_least(0, either(wschar(s), newline(s)))
+            );
+    });
+    return cache.at(sp);
 }
 
-TOML11_INLINE sequence ml_basic_string(const spec& s)
+TOML11_INLINE sequence const& ml_basic_string(const spec& sp)
 {
-    const auto mlb_content = [&s]() {
-        return either(basic_char(s), newline(s), escaped_newline(s));
-    };
-    const auto mlb_quotes = []() {
-        return either(literal("\"\""), character('\"'));
-    };
+    static thread_local auto cache = make_cache([](const spec& s) {
+        const auto mlb_content = [&s]() {
+            return either(basic_char(s), newline(s), escaped_newline(s));
+        };
+        const auto mlb_quotes = []() {
+            return either(literal("\"\""), character('\"'));
+        };
 
-    return sequence(
-            literal("\"\"\""),
-            maybe(newline(s)),
-            repeat_at_least(0, mlb_content()),
-            repeat_at_least(0,
-                sequence(
-                    mlb_quotes(),
-                    repeat_at_least(1, mlb_content())
-                )
-            ),
-            // XXX """ and mlb_quotes are intentionally reordered to avoid
-            //     unexpected match of mlb_quotes
-            literal("\"\"\""),
-            maybe(mlb_quotes())
-        );
+        return sequence(
+                literal("\"\"\""),
+                maybe(newline(s)),
+                repeat_at_least(0, mlb_content()),
+                repeat_at_least(0,
+                    sequence(
+                        mlb_quotes(),
+                        repeat_at_least(1, mlb_content())
+                    )
+                ),
+                // XXX """ and mlb_quotes are intentionally reordered to avoid
+                //     unexpected match of mlb_quotes
+                literal("\"\"\""),
+                maybe(mlb_quotes())
+            );
+    });
+    return cache.at(sp);
 }
 
 // ---------------------------------------------------------------------------
 // literal string
 
-TOML11_INLINE either literal_char(const spec& s)
+TOML11_INLINE either const& literal_char(const spec& sp)
 {
-    return either(
-            character         (0x09),
-            character_in_range(0x20, 0x26),
-            character_in_range(0x28, 0x7E),
-            non_ascii(s)
-        );
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return either(
+                character         (0x09),
+                character_in_range(0x20, 0x26),
+                character_in_range(0x28, 0x7E),
+                non_ascii(s)
+            );
+    });
+    return cache.at(sp);
 }
 
-TOML11_INLINE sequence literal_string(const spec& s)
+TOML11_INLINE sequence const& literal_string(const spec& sp)
 {
-    return sequence(
-            character('\''),
-            repeat_at_least(0, literal_char(s)),
-            character('\'')
-        );
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(
+                character('\''),
+                repeat_at_least(0, literal_char(s)),
+                character('\'')
+            );
+    });
+    return cache.at(sp);
 }
 
-TOML11_INLINE sequence ml_literal_string(const spec& s)
+TOML11_INLINE sequence const& ml_literal_string(const spec& sp)
 {
-    const auto mll_quotes = []() {
-        return either(literal("''"), character('\''));
-    };
-    const auto mll_content = [&s]() {
-        return either(literal_char(s), newline(s));
-    };
+    static thread_local auto cache = make_cache([](const spec& s) {
+        const auto mll_quotes = []() {
+            return either(literal("''"), character('\''));
+        };
+        const auto mll_content = [&s]() {
+            return either(literal_char(s), newline(s));
+        };
 
-    return sequence(
-            literal("'''"),
-            maybe(newline(s)),
-            repeat_at_least(0, mll_content()),
-            repeat_at_least(0, sequence(
-                    mll_quotes(),
-                    repeat_at_least(1, mll_content())
-                )
-            ),
-            literal("'''"),
-            maybe(mll_quotes())
-            // XXX ''' and mll_quotes are intentionally reordered to avoid
-            //     unexpected match of mll_quotes
-        );
+        return sequence(
+                literal("'''"),
+                maybe(newline(s)),
+                repeat_at_least(0, mll_content()),
+                repeat_at_least(0, sequence(
+                        mll_quotes(),
+                        repeat_at_least(1, mll_content())
+                    )
+                ),
+                literal("'''"),
+                maybe(mll_quotes())
+                // XXX ''' and mll_quotes are intentionally reordered to avoid
+                //     unexpected match of mll_quotes
+            );
+    });
+    return cache.at(sp);
 }
 
-TOML11_INLINE either string(const spec& s)
+TOML11_INLINE either const& string(const spec& sp)
 {
-    return either(
-            ml_basic_string(s),
-            ml_literal_string(s),
-            basic_string(s),
-            literal_string(s)
-        );
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return either(
+                ml_basic_string(s),
+                ml_literal_string(s),
+                basic_string(s),
+                literal_string(s)
+            );
+    });
+    return cache.at(sp);
 }
 
 // ===========================================================================
@@ -11857,71 +12350,94 @@ TOML11_INLINE region non_ascii_key_char::scan(location& loc) const
     return region{};
 }
 
-TOML11_INLINE repeat_at_least unquoted_key(const spec& s)
+TOML11_INLINE repeat_at_least const& unquoted_key(const spec& sp)
 {
-    auto keychar = either(
-            alpha(s), digit(s), character{0x2D}, character{0x5F}
-        );
-
-    if(s.v1_1_0_allow_non_english_in_bare_keys)
-    {
-        keychar.push_back(non_ascii_key_char(s));
-    }
-
-    return repeat_at_least(1, std::move(keychar));
+    static thread_local auto cache = make_cache([](const spec& s) {
+        const auto keychar = [&s] {
+            if(s.v1_1_0_allow_non_english_in_bare_keys)
+            {
+                return either(alpha(s), digit(s), character{0x2D}, character{0x5F},
+                              non_ascii_key_char(s));
+            }
+            else
+            {
+                return either(alpha(s), digit(s), character{0x2D}, character{0x5F});
+            }
+        };
+        return repeat_at_least(1, keychar());
+    });
+    return cache.at(sp);
 }
 
-TOML11_INLINE either quoted_key(const spec& s)
+TOML11_INLINE either const& quoted_key(const spec& sp)
 {
+    static thread_local auto cache = make_cache([](const spec& s) {
     return either(basic_string(s), literal_string(s));
+    });
+    return cache.at(sp);
 }
 
-TOML11_INLINE either simple_key(const spec& s)
+TOML11_INLINE either const& simple_key(const spec& sp)
 {
-    return either(unquoted_key(s), quoted_key(s));
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return either(unquoted_key(s), quoted_key(s));
+    });
+    return cache.at(sp);
 }
 
-TOML11_INLINE sequence dot_sep(const spec& s)
+TOML11_INLINE sequence const& dot_sep(const spec& sp)
 {
-    return sequence(ws(s), character('.'), ws(s));
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(ws(s), character('.'), ws(s));
+    });
+    return cache.at(sp);
 }
 
-TOML11_INLINE sequence dotted_key(const spec& s)
+TOML11_INLINE sequence const& dotted_key(const spec& sp)
 {
-    return sequence(
-        simple_key(s),
-        repeat_at_least(1, sequence(dot_sep(s), simple_key(s)))
-    );
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(
+            simple_key(s),
+            repeat_at_least(1, sequence(dot_sep(s), simple_key(s)))
+        );
+    });
+    return cache.at(sp);
 }
 
-TOML11_INLINE key::key(const spec& s) noexcept
-    : scanner_(dotted_key(s), simple_key(s))
-{}
-
-TOML11_INLINE sequence keyval_sep(const spec& s)
+TOML11_INLINE sequence const& keyval_sep(const spec& sp)
 {
-    return sequence(ws(s), character('='), ws(s));
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(ws(s), character('='), ws(s));
+    });
+    return cache.at(sp);
 }
 
 // ===========================================================================
 // Table key
 
-TOML11_INLINE sequence std_table(const spec& s)
+TOML11_INLINE sequence const& std_table(const spec& sp)
 {
-    return sequence(character('['), ws(s), key(s), ws(s), character(']'));
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(character('['), ws(s), key(s), ws(s), character(']'));
+    });
+    return cache.at(sp);
 }
 
-TOML11_INLINE sequence array_table(const spec& s)
+TOML11_INLINE sequence const& array_table(const spec& sp)
 {
-    return sequence(literal("[["), ws(s), key(s), ws(s), literal("]]"));
+    static thread_local auto cache = make_cache([](const spec& s) {
+        return sequence(literal("[["), ws(s), key(s), ws(s), literal("]]"));
+    });
+    return cache.at(sp);
 }
 
 // ===========================================================================
 // extension: null
 
-TOML11_INLINE literal null_value(const spec&)
+TOML11_INLINE literal const& null_value(const spec&)
 {
-    return literal("null");
+    static thread_local literal cache("null");
+    return cache;
 }
 
 } // namespace syntax
@@ -12784,7 +13300,7 @@ parse_floating(location& loc, const context<TC>& ctx)
     bool is_hex = false;
     std::string str;
     region reg;
-    if(spec.ext_hex_float && sequence(character('0'), character('x')).scan(loc).is_ok())
+    if(spec.ext_hex_float && literal("0x").scan(loc).is_ok())
     {
         loc = first;
         is_hex = true;
@@ -13557,8 +14073,7 @@ parse_escape_sequence(location& loc, const context<TC>& ctx)
     }
     else if(spec.v1_1_0_add_escape_sequence_x && loc.current() == 'x')
     {
-        auto scanner = sequence(character('x'), repeat_exact(2, syntax::hexdig(spec)));
-        const auto reg = scanner.scan(loc);
+        const auto reg = syntax::escaped_x2(spec).scan(loc);
         if( ! reg.is_ok())
         {
             auto src = source_location(region(loc));
@@ -13575,8 +14090,7 @@ parse_escape_sequence(location& loc, const context<TC>& ctx)
     }
     else if(loc.current() == 'u')
     {
-        auto scanner = sequence(character('u'), repeat_exact(4, syntax::hexdig(spec)));
-        const auto reg = scanner.scan(loc);
+        const auto reg = syntax::escaped_u4(spec).scan(loc);
         if( ! reg.is_ok())
         {
             auto src = source_location(region(loc));
@@ -13593,8 +14107,7 @@ parse_escape_sequence(location& loc, const context<TC>& ctx)
     }
     else if(loc.current() == 'U')
     {
-        auto scanner = sequence(character('U'), repeat_exact(8, syntax::hexdig(spec)));
-        const auto reg = scanner.scan(loc);
+        const auto reg = syntax::escaped_U8(spec).scan(loc);
         if( ! reg.is_ok())
         {
             auto src = source_location(region(loc));
@@ -14990,7 +15503,7 @@ guess_number_type(const location& first, const context<TC>& ctx)
             if('0' <= c && c <= '9')
             {
                 return err(make_syntax_error("bad datetime: missing T or space",
-                    character_either{'T', 't', ' '}, loc, std::string(
+                    character_either("Tt "), loc, std::string(
                     "Hint: valid  : 1979-05-27T07:32:00, 1979-05-27 07:32:00.999999\n"
                     "Hint: invalid: 1979-05-27T7:32:00, 1979-05-27 17:32\n")));
             }
@@ -15737,6 +16250,11 @@ parse_file(location& loc, context<TC>& ctx)
     {
         return err(std::move(ctx.errors()));
     }
+
+#ifdef TOML11_ENABLE_ACCESS_CHECK
+    detail::unset_access_flag_recursively(root);
+#endif
+
     return ok(std::move(root));
 }
 
