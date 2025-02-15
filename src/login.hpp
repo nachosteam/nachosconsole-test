@@ -19,7 +19,6 @@
 #include "toml.hpp"
 #include "SHA512.h"
 #include "sessionData.hpp"
-SHA512 sha512;
 
 static void login () {
 	std::string usr;

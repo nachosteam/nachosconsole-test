@@ -19,6 +19,7 @@
 #include "toml.hpp"
 #include "SHA512.h"
 #include "sessionData.hpp"
+SHA512 sha512;
 
 static void defaultCfg(std::ofstream &cfg) {
 	cfg << "pc=\"pc\"" << std::endl <<
@@ -38,7 +39,6 @@ static void addUser() {
 			std::wstring password;
 			std::wcout << "|Enter password: ";
 			getline(std::wcin, password);
-			SHA512 sha512;
         		data[usr_str]["pass_hash"] = sha512.hash(std::string(password.begin(), password.end()));
 			std::ofstream cfg("nc-bin/cfg.toml");
 			cfg << data;
@@ -49,4 +49,15 @@ static void addUser() {
 	else {
 		std::cout << "You are not rooted." << std::endl;
 	}
+}
+static void passwd() {
+	auto data = toml::parse("nc-bin/cfg.toml");
+	std::wstring newpass;
+	std::cout << "\tEnter new password: ";
+	getline(std::wcin, newpass);
+	std::string nPass_str(newpass.begin(), newpass.end());
+	data[mainInfo.currentUsr]["pass_hash"] = sha512.hash(nPass_str);
+	std::ofstream cfg("nc-bin/cfg.toml");
+	cfg << data;
+	cfg.close();
 }

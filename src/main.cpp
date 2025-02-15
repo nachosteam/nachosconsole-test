@@ -43,11 +43,12 @@ int main(int argc, char *argv[]) {
 		std::string input_str(input.begin(), input.end());
 		std::wistringstream iss(input);
 		iss >> input;
-		if (input == L"adduser") {
+		if (input == L"adduser")
 			addUser();
-		}
 		else if (input == L"exit")
 			exit(1);
+		else if (input == L"passwd")
+			passwd();
 		else {
 			if (!input.empty()) {
 				if (std::filesystem::exists(L"nc-bin/"+input)) {
