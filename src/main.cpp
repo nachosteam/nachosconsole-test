@@ -16,6 +16,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <filesystem>
 #ifdef __WIN32
@@ -36,22 +37,21 @@ int main(int argc, char *argv[]) {
 	while (true) {
 		std::wcout << getUsername() << L"@" << getPc() << L"$ ";
 		std::wstring input;
+		std::wstring input_full;
 		getline(std::wcin, input);
+		input_full = input;
 		std::string input_str(input.begin(), input.end());
-		if (input == L"pizda") {
-			std::wcout << "pizdec" << std::endl;
+		std::wistringstream iss(input);
+		iss >> input;
+		if (input == L"adduser") {
+			addUser();
 		}
-		else if (input == L"adduser") {
-			std::ofstream cfg("nc-bin/cfg.toml");
-			addUser(cfg, "tolik", "123");
-			cfg.close();
-		}
+		else if (input == L"exit")
+			exit(1);
 		else {
 			if (!input.empty()) {
-				// сделать проверку на пробелы в вводе (ес пробелы, то пуста)
 				if (std::filesystem::exists(L"nc-bin/"+input)) {
 					std::cout << "Test: Exists" << std::endl;
-					//добавить запуск прог
 				}
 				else {
 					std::wcout << "Unknown command: " << input << std::endl;

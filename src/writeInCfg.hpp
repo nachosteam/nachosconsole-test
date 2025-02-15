@@ -18,6 +18,7 @@
 #include <iostream>
 #include "toml.hpp"
 #include "SHA512.h"
+#include "sessionData.hpp"
 
 static void defaultCfg(std::ofstream &cfg) {
 	cfg << "pc=\"pc\"" << std::endl <<
@@ -26,8 +27,26 @@ static void defaultCfg(std::ofstream &cfg) {
 	"pass_hash=\"\"" << std::endl;
 }
 
-static void addUser(std::ofstream &cfg, std::string username, std::string password) {
-	SHA512 sha512;
-	cfg << "[" << username << "]" << std::endl <<
-	"pass_hash=\"" << sha512.hash(password) << "\"" << std::endl;
+static void addUser() {
+	auto data = toml::parse("nc-bin/cfg.toml");
+	if (mainInfo.currentUsr == "root") {
+		std::wstring username;
+		std::wcout << "|Enter username: ";
+		getline(std::wcin, username);
+		std::string usr_str(username.begin(), username.end());
+		if (!data.contains(usr_str)) {
+			std::wstring password;
+			std::wcout << "|Enter password: ";
+			getline(std::wcin, password);
+			SHA512 sha512;
+        		data[usr_str]["pass_hash"] = sha512.hash(std::string(password.begin(), password.end()));
+			std::ofstream cfg("nc-bin/cfg.toml");
+			cfg << data;
+		}
+		else
+			std::cout << "This user already exists." << std::endl;
+	}
+	else {
+		std::cout << "You are not rooted." << std::endl;
+	}
 }
