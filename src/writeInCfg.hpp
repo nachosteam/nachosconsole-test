@@ -50,6 +50,25 @@ static void addUser() {
 		std::cout << "You are not rooted." << std::endl;
 	}
 }
+static void rmUser() {
+        auto data = toml::parse("nc-bin/cfg.toml");
+        if (mainInfo.currentUsr == "root") {
+                std::wstring username;
+                std::wcout << "|Enter username: ";
+                getline(std::wcin, username);
+                std::string usr_str(username.begin(), username.end());
+                if (data.contains(usr_str)) {
+			
+                        std::ofstream cfg("nc-bin/cfg.toml");
+                        cfg << data;
+                }
+                else
+                        std::cout << "This user does not exists." << std::endl;
+        }
+        else {
+                std::cout << "You are not rooted." << std::endl;
+        }
+}
 static void passwd() {
 	auto data = toml::parse("nc-bin/cfg.toml");
 	std::wstring newpass;
