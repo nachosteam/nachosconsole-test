@@ -58,9 +58,10 @@ static void rmUser() {
                 getline(std::wcin, username);
                 std::string usr_str(username.begin(), username.end());
                 if (data.contains(usr_str)) {
-			
+			data.as_table().erase(usr_str);
                         std::ofstream cfg("nc-bin/cfg.toml");
                         cfg << data;
+			cfg.close();
                 }
                 else
                         std::cout << "This user does not exists." << std::endl;

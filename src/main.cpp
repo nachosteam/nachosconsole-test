@@ -45,6 +45,8 @@ int main(int argc, char *argv[]) {
 		iss >> input;
 		if (input == L"adduser")
 			addUser();
+		else if (input == L"rmuser")
+			rmUser();
 		else if (input == L"exit")
 			exit(1);
 		else if (input == L"passwd")
