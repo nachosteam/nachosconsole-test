@@ -21,8 +21,9 @@
 #include <filesystem>
 #ifdef __WIN32
 	#include <windows.h>
+	#define OS_CLEAR "cls"
 #elif __linux__
-	
+	#define OS_CLEAR "clear"
 #endif
 #include "toml.hpp"
 #include "getFromCfg.hpp"
@@ -43,14 +44,18 @@ int main(int argc, char *argv[]) {
 		std::string input_str(input.begin(), input.end());
 		std::wistringstream iss(input);
 		iss >> input;
-		if (input == L"adduser")
+		if (input == L"help")
+			std::cout << "wip" << std::endl;
+		else if (input == L"adduser")
 			addUser();
 		else if (input == L"rmuser")
 			rmUser();
-		else if (input == L"exit")
-			exit(1);
 		else if (input == L"passwd")
 			passwd();
+		else if (input == L"clear" || input == L"cls")
+			system(OS_CLEAR);
+		else if (input == L"exit")
+                        exit(1);
 		else {
 			if (!input.empty()) {
 				if (std::filesystem::exists(L"nc-bin/"+input)) {
