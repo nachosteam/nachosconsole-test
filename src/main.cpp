@@ -29,6 +29,7 @@
 #include "getFromCfg.hpp"
 #include "writeInCfg.hpp"
 #include "account.hpp"
+#include "commHelp.hpp"
 extern "C" {
 
 }
@@ -45,7 +46,7 @@ int main(int argc, char *argv[]) {
 		std::wistringstream iss(input);
 		iss >> input;
 		if (input == L"help")
-			std::cout << "wip" << std::endl;
+			help();
 		else if (input == L"adduser")
 			addUser();
 		else if (input == L"rmuser")
