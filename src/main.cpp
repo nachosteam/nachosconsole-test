@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
 		std::wistringstream iss(input);
 		iss >> input;
 		if (input == L"help")
-			help();
+			help("default");
 		else if (input == L"adduser")
 			addUser();
 		else if (input == L"rmuser")
