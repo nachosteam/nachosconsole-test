@@ -29,7 +29,7 @@ static void login () {
 		std::string pass;
 		std::cout << "\tPassword: ";
 		getline(std::cin, pass);
-		if (toml::find<std::string>(data, usr, "pass_hash") == sha512.hash(pass) || toml::find<std::string>(data, usr, "pass_hash").empty() && pass.empty()) {
+		if (toml::find<std::string>(data, usr, "pass_hash") == sha512.hash(pass)) {
 			mainInfo.currentUsr = usr;
 			std::cout << "Welcome, " << usr << "!" << std::endl;
 		}
