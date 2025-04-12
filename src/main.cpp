@@ -37,33 +37,32 @@ extern "C" {
 int main(int argc, char *argv[]) {
 	signIn();
 	while (true) {
-		std::wcout << getUsername() << L"@" << getPc() << L"$ ";
-		std::wstring input;
-		std::wstring input_full;
-		getline(std::wcin, input);
+		std::cout << getUsername() << "@" << getPc() << "$ ";
+		std::string input;
+		std::string input_full;
+		getline(std::cin, input);
 		input_full = input;
-		std::string input_str(input.begin(), input.end());
-		std::wistringstream iss(input);
+		std::istringstream iss(input);
 		iss >> input;
-		if (input == L"help")
+		if (input == "help")
 			help("default");
-		else if (input == L"adduser")
+		else if (input == "adduser")
 			addUser();
-		else if (input == L"rmuser")
+		else if (input == "rmuser")
 			rmUser();
-		else if (input == L"passwd")
+		else if (input == "passwd")
 			passwd();
-		else if (input == L"clear" || input == L"cls")
+		else if (input == "clear")
 			system(OS_CLEAR);
-		else if (input == L"exit")
+		else if (input == "exit")
                         exit(1);
 		else {
 			if (!input.empty()) {
-				if (std::filesystem::exists(L"nc-bin/"+input)) {
+				if (std::filesystem::exists("nc-bin/"+input)) {
 					std::cout << "Test: Exists" << std::endl;
 				}
 				else {
-					std::wcout << "Unknown command: " << input << std::endl;
+					std::cout << "Unknown command: " << input << std::endl;
 				}
 			}
 		}

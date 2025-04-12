@@ -20,12 +20,12 @@
 #include "sessionData.hpp"
 MainInfo mainInfo;
 
-static std::wstring getPc() {
+static std::string getPc() {
 	auto data = toml::parse("nc-bin/cfg.toml");
 	std::string pc = toml::find<std::string>(data, "pc");
-        return std::wstring(pc.begin(), pc.end());
+        return std::string(pc.begin(), pc.end());
 }
-static std::wstring getUsername() {
+static std::string getUsername() {
 	std::string cUsr = mainInfo.currentUsr;
-	return std::wstring(cUsr.begin(), cUsr.end());
+	return std::string(cUsr.begin(), cUsr.end());
 }

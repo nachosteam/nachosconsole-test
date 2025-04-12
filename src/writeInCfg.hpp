@@ -31,15 +31,14 @@ static void defaultCfg(std::ofstream &cfg) {
 static void addUser() {
 	auto data = toml::parse("nc-bin/cfg.toml");
 	if (mainInfo.currentUsr == "root") {
-		std::wstring username;
-		std::wcout << "|Enter username: ";
-		getline(std::wcin, username);
-		std::string usr_str(username.begin(), username.end());
-		if (!data.contains(usr_str)) {
-			std::wstring password;
-			std::wcout << "|Enter password: ";
-			getline(std::wcin, password);
-        		data[usr_str]["pass_hash"] = sha512.hash(std::string(password.begin(), password.end()));
+		std::string username;
+		std::cout << "|Enter username: ";
+		getline(std::cin, username);
+		if (!data.contains(username)) {
+			std::string password;
+			std::cout << "|Enter password: ";
+			getline(std::cin, password);
+        		data[username]["pass_hash"] = sha512.hash(password);
 			std::ofstream cfg("nc-bin/cfg.toml");
 			cfg << data;
 		}
@@ -53,12 +52,11 @@ static void addUser() {
 static void rmUser() {
         auto data = toml::parse("nc-bin/cfg.toml");
         if (mainInfo.currentUsr == "root") {
-                std::wstring username;
-                std::wcout << "|Enter username: ";
-                getline(std::wcin, username);
-                std::string usr_str(username.begin(), username.end());
-                if (data.contains(usr_str)) {
-			data.as_table().erase(usr_str);
+                std::string username;
+                std::cout << "|Enter username: ";
+                getline(std::cin, username);
+                if (data.contains(username)) {
+			data.as_table().erase(username);
                         std::ofstream cfg("nc-bin/cfg.toml");
                         cfg << data;
 			cfg.close();
@@ -72,11 +70,10 @@ static void rmUser() {
 }
 static void passwd() {
 	auto data = toml::parse("nc-bin/cfg.toml");
-	std::wstring newpass;
+	std::string newpass;
 	std::cout << "\tEnter new password: ";
-	getline(std::wcin, newpass);
-	std::string nPass_str(newpass.begin(), newpass.end());
-	data[mainInfo.currentUsr]["pass_hash"] = sha512.hash(nPass_str);
+	getline(std::cin, newpass);
+	data[mainInfo.currentUsr]["pass_hash"] = sha512.hash(newpass);
 	std::ofstream cfg("nc-bin/cfg.toml");
 	cfg << data;
 	cfg.close();
