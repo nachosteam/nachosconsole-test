@@ -44,7 +44,7 @@ static void login () {
 	}
 }
 static void reg () {
-	std::cout << "Register:" << std::endl;
+	std::cout << "Creating user" << std::endl;
 	std::string usr;
 	std::cout << "\tLogin: ";
 	getline(std::cin, usr);
@@ -65,4 +65,8 @@ static void reg () {
 		std::cout << "This user already exests!" <<std::endl;
 		exit(1);
 	}
+}
+
+static void firstSettings() {
+	std::cout << "" << std::endl;
 }

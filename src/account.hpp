@@ -30,6 +30,7 @@ static void checkExistsCFG() {
 		if (cfg.is_open()) {
 			defaultCfg(cfg); // для предотвращения ошибок с случае выхода из программы во время первоначальной настройки
 			cfg.close();
+			firstSettings();
 			reg();
 		}
 		else {
