@@ -20,42 +20,61 @@
 #include <string>
 #include <filesystem>
 #include "toml.hpp"
+#include "term/termControl.hpp"
+#include "term/input.hpp"
 #include "getFromCfg.hpp"
 #include "writeInCfg.hpp"
 #include "account.hpp"
 #include "commHelp.hpp"
 #include "about.hpp"
+#include "pkgman/getArch.hpp"
+#include "pkgman/update.hpp"
 extern "C" {
 
 }
 
 int main(int argc, char *argv[]) {
 	signIn();
+	enableRawMode();
+
+	std::vector<std::string> history;
+	int historyIndex = 0;
+
 	while (true) {
-		std::cout << getUsername() << "@" << getPc() << "$ ";
-		std::string input;
-		std::string input_full;
-		getline(std::cin, input);
-		input_full = input;
+		std::string prompt = getUsername() + "@" + getPc() + "$ ";
+		std::string input = readInputWithHistory(prompt, history, historyIndex);
 		std::istringstream iss(input);
-		iss >> input;
-		if (input == "help")
+		std::string command;
+		iss >> command;
+		if (command == "help")
 			help("default");
-		else if (input == "about")
+		else if (command == "about")
 			about();
-		else if (input == "adduser")
+		else if (command == "adduser")
 			addUser();
-		else if (input == "rmuser")
+		else if (command == "rmuser")
 			rmUser();
-		else if (input == "passwd")
+		else if (command == "passwd")
 			passwd();
-		else if (input == "clear")
+		else if (command == "arch")
+			std::cout << getArch() << std::endl;
+		else if (command == "pkg") {
+			std::string parameter;
+			iss >> parameter;
+			if (parameter == "update")
+				update();
+			else
+				std::cout << "динаху лох ебьани" << std::endl;
+		}
+		else if (command == "clear")
 			system("clear");
-		else if (input == "exit")
+		else if (command == "exit") {
+			disableRawMode();
                         exit(1);
+		}
 		else {
-			if (!input.empty()) {
-				if (std::filesystem::exists("nc-bin/"+input)) {
+			if (!command.empty()) {
+				if (std::filesystem::exists("nc-bin/"+command)) {
 					std::cout << "Test: Exists" << std::endl;
 				}
 				else {

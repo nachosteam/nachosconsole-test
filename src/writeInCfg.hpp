@@ -23,7 +23,7 @@ SHA512 sha512;
 
 static void defaultCfg(std::ofstream &cfg) {
 	cfg << "pc=\"pc\"" << std::endl <<
-	"repos=[\"https://raw.githubusercontent.com/nachosteam/ncrepo\"]" << std::endl << std::endl <<
+	"repo=\"https://raw.githubusercontent.com/nachosteam/ncrepo/refs/heads/main\"" << std::endl << std::endl <<
 	"[root]" << std::endl <<
 	"pass_hash=\"\"" << std::endl;
 }
