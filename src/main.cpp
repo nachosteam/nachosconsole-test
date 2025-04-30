@@ -19,17 +19,12 @@
 #include <sstream>
 #include <string>
 #include <filesystem>
-#ifdef __WIN32
-	#include <windows.h>
-	#define OS_CLEAR "cls"
-#elif __linux__
-	#define OS_CLEAR "clear"
-#endif
 #include "toml.hpp"
 #include "getFromCfg.hpp"
 #include "writeInCfg.hpp"
 #include "account.hpp"
 #include "commHelp.hpp"
+#include "about.hpp"
 extern "C" {
 
 }
@@ -46,6 +41,8 @@ int main(int argc, char *argv[]) {
 		iss >> input;
 		if (input == "help")
 			help("default");
+		else if (input == "about")
+			about();
 		else if (input == "adduser")
 			addUser();
 		else if (input == "rmuser")
@@ -53,7 +50,7 @@ int main(int argc, char *argv[]) {
 		else if (input == "passwd")
 			passwd();
 		else if (input == "clear")
-			system(OS_CLEAR);
+			system("clear");
 		else if (input == "exit")
                         exit(1);
 		else {
@@ -67,15 +64,4 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
-	
-	/* auto data = toml::parse("test.toml");
-	int title = toml::find<int>(data, "main", "owners");
-	std::cout << "Enter: ";
-	std::string pizda;
-	getline(std::cin, pizda);
-	
-	data["testing"]["pizdaV1"] = pizda;
-	std::ofstream file("test.toml");
-	file << data;
-	file.close(); */
 }
