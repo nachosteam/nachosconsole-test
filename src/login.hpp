@@ -68,5 +68,19 @@ static void reg () {
 }
 
 static void firstSettings() {
-	std::cout << "" << std::endl;
+	std::string root_pass;
+	std::cout << "\t|Enter root password: ";
+	getline(std::cin, root_pass);
+	auto data = toml::parse("nc-bin/cfg.toml");
+	data["root"]["pass_hash"] = sha512.hash(root_pass);
+
+	std::string pc_name;
+	std::cout << "\t|Enter pc name: ";
+	getline(std::cin, pc_name);
+	data["pc"] = pc_name;
+
+	std::ofstream cfg;
+	cfg.open("nc-bin/cfg.toml");
+        cfg << data;
+        cfg.close();
 }
