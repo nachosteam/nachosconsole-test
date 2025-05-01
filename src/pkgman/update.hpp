@@ -10,6 +10,6 @@ static void update() {
 		system(downloadPkgList.c_str());
 	}
 	catch (std::string error_message) {
-		std::cout << "Error: " << error_massage << std::endl;
+		std::cout << "Error: " << error_message << std::endl;
 	}
 }

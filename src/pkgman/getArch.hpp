@@ -1,5 +1,6 @@
 #pragma once
 #include <iostream>
+#include "../toml.hpp"
 
 std::string getArch() {
 	#if defined(__x86_64__) || defined(_M_X64)
@@ -14,3 +15,29 @@ std::string getArch() {
         return "UNSUPPORTED";
         #endif
 }
+
+bool isContainYourArch(std::string package) {
+	auto data = toml::parse("nc-bin/packages.toml");
+	auto archList = toml::find<std::vector<std::string>>(data, package, "arch");
+
+	for (const auto& arch : archList) {
+		if (arch == getArch() || arch == "any") {
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string downloadableArch(std::string package) {
+        auto data = toml::parse("nc-bin/packages.toml");
+        auto archList = toml::find<std::vector<std::string>>(data, package, "arch");
+
+        for (const auto& arch : archList) {
+                if (arch == getArch()) {
+                        return getArch();
+                }
+		else if (arch == "any")
+			return "any";
+        }
+}
+

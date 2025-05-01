@@ -29,6 +29,7 @@
 #include "about.hpp"
 #include "pkgman/getArch.hpp"
 #include "pkgman/update.hpp"
+#include "pkgman/install.hpp"
 extern "C" {
 
 }
@@ -61,7 +62,12 @@ int main(int argc, char *argv[]) {
 		else if (command == "pkg") {
 			std::string parameter;
 			iss >> parameter;
-			if (parameter == "update")
+			if (parameter == "-i") {
+				std::string package;
+				iss >> package;
+				install(package);
+			}
+			else if (parameter == "-u")
 				update();
 			else
 				std::cout << "динаху лох ебьани" << std::endl;
