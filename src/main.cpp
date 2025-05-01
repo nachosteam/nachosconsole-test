@@ -30,6 +30,7 @@
 #include "pkgman/getArch.hpp"
 #include "pkgman/update.hpp"
 #include "pkgman/install.hpp"
+#include "pkgman/startPkg.hpp"
 extern "C" {
 
 }
@@ -81,7 +82,7 @@ int main(int argc, char *argv[]) {
 		else {
 			if (!command.empty()) {
 				if (std::filesystem::exists("nc-bin/"+command)) {
-					std::cout << "Test: Exists" << std::endl;
+					startPkg(command, input);
 				}
 				else {
 					std::cout << "Unknown command: " << input << std::endl;
