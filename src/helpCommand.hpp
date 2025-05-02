@@ -11,4 +11,9 @@ void help(std::string place) {
                 "passwd\tchanges the password of the current user" << std::endl <<
                 "clear\tclears the terminal window" << std::endl <<
                 "exit\tstops running NachosConsole" << std::endl;
+	else if (place == "pkg")
+		std::cout <<
+		"-i <package>\tinstall package" << std::endl <<
+		"-u\tupdate avalible packages list" << std::endl <<
+		"-r <package>\tremove package" << std::endl;
 }

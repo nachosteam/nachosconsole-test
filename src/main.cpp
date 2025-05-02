@@ -25,11 +25,12 @@
 #include "getFromCfg.hpp"
 #include "writeInCfg.hpp"
 #include "account.hpp"
-#include "commHelp.hpp"
+#include "helpCommand.hpp"
 #include "about.hpp"
 #include "pkgman/getArch.hpp"
 #include "pkgman/update.hpp"
 #include "pkgman/install.hpp"
+#include "pkgman/remove.hpp"
 #include "pkgman/startPkg.hpp"
 extern "C" {
 
@@ -68,10 +69,15 @@ int main(int argc, char *argv[]) {
 				iss >> package;
 				install(package);
 			}
+			else if (parameter == "-r") {
+				std::string package;
+				iss >> package;
+				remove(package);
+			}
 			else if (parameter == "-u")
 				update();
 			else
-				std::cout << "динаху лох ебьани" << std::endl;
+				help("pkg");
 		}
 		else if (command == "clear")
 			system("clear");

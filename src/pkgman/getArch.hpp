@@ -40,4 +40,3 @@ std::string downloadableArch(std::string package) {
 			return "any";
         }
 }
-
