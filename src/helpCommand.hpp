@@ -14,6 +14,6 @@ void help(std::string place) {
 	else if (place == "pkg")
 		std::cout <<
 		"-i <package>\tinstall package" << std::endl <<
-		"-u\tupdate avalible packages list" << std::endl <<
-		"-r <package>\tremove package" << std::endl;
+		"-r <package>\tremove package" << std::endl <<
+		"-u\tupdate avalible packages list" << std::endl;
 }
