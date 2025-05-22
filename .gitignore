@@ -4,4 +4,7 @@
 compile.txt
 *.toml
 src/nc-bin
-nc
+nc-nightly
+
+.xmake
+build
