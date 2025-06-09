@@ -19,5 +19,5 @@
 static void about() {
 	std::cout <<
 	"NachosConsole(test branch) by NachosTeam" << std::endl <<
-	"edit from 30th april 2025" << std::endl;
+	"edit from 23rd may 2025" << std::endl;
 }

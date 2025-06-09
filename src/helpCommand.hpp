@@ -6,6 +6,7 @@ void help(std::string place) {
 	if (place == "default")
 		std::cout <<
 		"about\tinfo about NachosConsole" << std::endl <<
+		"pkg <parameter> [package]\tpackage manager" << std::endl <<
 		"adduser\tadds a new user (root access required)" << std::endl <<
                 "rmuser\tdeletes user (root access required)" << std::endl <<
                 "passwd\tchanges the password of the current user" << std::endl <<

@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
 			system("clear");
 		else if (command == "exit") {
 			disableRawMode();
-                        exit(1);
+                        exit(0);
 		}
 		else {
 			if (!command.empty()) {
