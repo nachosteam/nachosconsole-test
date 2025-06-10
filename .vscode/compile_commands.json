@@ -1,0 +1,11 @@
+[
+{
+  "directory": "/home/tolya/nachosconsole-test",
+  "arguments": ["/usr/lib64/ccache/gcc", "-c", "-m64", "-fvisibility=hidden", "-O3", "-std=c23", "-Ibuild/.gens/nc-test/linux/x86_64/release/platform/windows/idl", "-DNDEBUG", "-o", "build/.objs/nc-test/linux/x86_64/release/src-c/toml.c.o", "src-c/toml.c"],
+  "file": "src-c/toml.c"
+},
+{
+  "directory": "/home/tolya/nachosconsole-test",
+  "arguments": ["/usr/lib64/ccache/gcc", "-c", "-m64", "-fvisibility=hidden", "-O3", "-std=c23", "-Ibuild/.gens/nc-test/linux/x86_64/release/platform/windows/idl", "-DNDEBUG", "-o", "build/.objs/nc-test/linux/x86_64/release/src-c/main.c.o", "src-c/main.c"],
+  "file": "src-c/main.c"
+}]
