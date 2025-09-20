@@ -1,11 +1,6 @@
 add_rules("mode.debug", "mode.release")
-add_requires("openssl")
 
 target("nc-test")
     set_kind("binary")
-    set_languages("c23")
-    add_files("src-c/*.c")
-    add_packages("openssl")
-    after_build(function (target)
-        os.cp("src-c/test.toml", path.directory(target:targetfile()))
-    end)
+    set_languages("c++23")
+    add_files("src/*.cpp")
